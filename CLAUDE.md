@@ -80,6 +80,7 @@ packages/shared/     platform limitleri, durum makinesi, saat, doğrulama, zod �
 ## Tamamlanan fazlar
 
 - [x] Faz 0 — iskelet
+- [x] Faz 3 — Instagram: OAuth (Instagram Login, kısa → uzun token), limit → container (video_url/resumable) → yoklama → media_publish (commit) → permalink, reconcile (container PUBLISHED + caption/zaman eşleşmesi), token yenileme, kapak + share_to_feed + AI etiketi, Hesaplar sayfası
 - [x] Faz 2 — slotlar, doldurma (tek batch), elle tarih-saat, cron, Queue orkestratörü, durum makinesi, kilit, retry, kill switch, kaçırılan slot, DryRun, şimdi paylaş, post_events, liste görünümü, ayarlar sayfası, audit log
 - [x] Faz 1 — marka CRUD, presigned multipart yükleme (S3 anahtarı yoksa yerel /api/uploads/local/*), doğrulama, thumbnail, kuyruk sıralama (kesirli), caption override, yinelenen içerik uyarısı, medya akışı (Range)
 
@@ -97,6 +98,13 @@ packages/shared/     platform limitleri, durum makinesi, saat, doğrulama, zod �
 - Yerel cron tetikleme: `wrangler dev --test-scheduled` + `curl "localhost:8787/cdn-cgi/handler/scheduled?cron=*+*+*+*+*"`. Elle günlük işler: `POST /api/system/run-daily`.
 - Testlerde depolama dosya içi testler arasında paylaşımlı: testler kendi markalarının post'larını süzerek doğrular.
 
+## OAuth (Faz 3+)
+
+- `GET /api/oauth/:platform/start?brand_id=` → `oauth_states` (10 dk, tek kullanımlık, başlatan e-posta) → platform. Callback `GET /api/oauth/:platform/callback` (Access arkasında, aynı kullanıcı) → token takası → profil → `lib/accounts.ts upsertAccount` (marka × platform tek satır, yerinde güncelleme) → `/hesaplar?connected=` veya `?error=`.
+- Redirect URI: `${APP_BASE_URL origin}/api/oauth/<platform>/callback`.
+- DRY_RUN açıkken token takası http istemcisinde engellenir → bağlanmak için DRY_RUN=false gerekir (README'deki güvenli sıra).
+- Platform modülleri `publish/<platform>.ts`: publisher + OAuth adaptörü; `publish/publishers.ts` kaydeder.
+
 ## Yükleme notları
 
 - Parça boyu 16 MiB (`lib/r2.ts PART_SIZE`); tarayıcı 4 paralel PUT, parça başına 3 deneme (`apps/web/src/lib/upload.ts`).
@@ -110,6 +118,11 @@ packages/shared/     platform limitleri, durum makinesi, saat, doğrulama, zod �
 - (yok)
 
 ## TODO(doğrula)
+
+- Instagram `is_ai_generated` parametresinin adı/geçerliliği.
+- Instagram `/me` alanı: `/{ig-user-id}/media` için `user_id` mi `id` mi (user_id tercih edildi).
+- Instagram resumable (rupload) kesintide `offset` ile devam; şimdilik baştan gönderilir.
+- Instagram hata kodları eşlemesi (100/33 geçici, 9/2207042 limit, 190 token) — gerçek yanıtlarla doğrulanmalı.
 
 - Instagram Standard Access ile kendi hesaplarımız için App Review gerekmemesi.
 - Meta'nın presigned (query string'li, süreli) R2 URL'sini `video_url` olarak kabul etmesi.

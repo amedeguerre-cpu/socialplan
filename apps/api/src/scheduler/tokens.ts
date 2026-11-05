@@ -1,3 +1,4 @@
+import '../publish/publishers';
 /** Token yenileme: IG bitişe 10 gün kala, TikTok/YouTube süre dolmadan (publisher.refreshLeadSeconds). */
 import { PLATFORM_LABELS } from '@socialplan/shared';
 import { isDryRun, type Env } from '../env';

@@ -11,6 +11,7 @@ import { mediaRoutes } from './routes/media';
 import { slotRoutes } from './routes/slots';
 import { postRoutes } from './routes/posts';
 import { accountRoutes } from './routes/accounts';
+import { oauthRoutes } from './routes/oauth';
 import type { AppEnv } from './types';
 
 const api = new Hono<AppEnv>()
@@ -23,7 +24,8 @@ const api = new Hono<AppEnv>()
   .route('/media', mediaRoutes)
   .route('/slots', slotRoutes)
   .route('/posts', postRoutes)
-  .route('/accounts', accountRoutes);
+  .route('/accounts', accountRoutes)
+  .route('/oauth', oauthRoutes);
 
 export const app = new Hono<AppEnv>()
   .use('*', async (c, next) => {

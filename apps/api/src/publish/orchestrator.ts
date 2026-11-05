@@ -247,43 +247,43 @@ export async function processMessage(
     },
   };
 
-  // --- Adım ---
-  const run = async (): Promise<StepResult> =>
-    state.commitPending ? pub.reconcile(ctx, state) : pub.step(ctx, state);
-  let result: StepResult;
-  try {
-    result = await run();
-    if (result.kind === 'error' && result.code === AUTH_EXPIRED && !dry) {
-      const realPub = platformPublisher(post.platform);
-      const ref = realPub
-        ? await refreshAccount(env, http, plog, account, realPub, now)
-        : { ok: false, message: 'publisher yok' };
-      if (ref.ok && ref.tokens) {
-        tokenCache = ref.tokens;
-        if (committedState) state = committedState;
-        result = await run();
-        if (result.kind === 'error' && result.code === AUTH_EXPIRED) {
-          await markReconnect(env, account.id, 'Yenilenen token da reddedildi');
-          result = {
-            kind: 'error',
-            class: 'action',
-            code: 'token_invalid',
-            message: 'Token yenilendi ama platform yine reddetti; hesabı yeniden bağlayın',
-          };
-        }
-      } else {
+  // --- Adım (istisnalar sonuca çevrilir; 401 → bir kez yenile + tekrar) ---
+  const run = async (): Promise<StepResult> => {
+    try {
+      return await (state.commitPending ? pub.reconcile(ctx, state) : pub.step(ctx, state));
+    } catch (e) {
+      if (e instanceof KillSwitchError)
+        return { kind: 'error', class: 'action', code: 'kill_switch', message: e.message };
+      return { kind: 'error', ...pub.classifyError(e) };
+    }
+  };
+  let result = await run();
+  if (result.kind === 'error' && result.code === AUTH_EXPIRED && !dry) {
+    const realPub = platformPublisher(post.platform);
+    const ref = realPub
+      ? await refreshAccount(env, http, plog, account, realPub, now)
+      : { ok: false, message: 'publisher yok' };
+    if (ref.ok && ref.tokens) {
+      tokenCache = ref.tokens;
+      if (committedState) state = committedState;
+      result = await run();
+      if (result.kind === 'error' && result.code === AUTH_EXPIRED) {
+        await markReconnect(env, account.id, 'Yenilenen token da reddedildi');
         result = {
           kind: 'error',
           class: 'action',
-          code: 'token_refresh_failed',
-          message: `Token yenilenemedi: ${ref.message ?? ''}`,
+          code: 'token_invalid',
+          message: 'Token yenilendi ama platform yine reddetti; hesabı yeniden bağlayın',
         };
       }
+    } else {
+      result = {
+        kind: 'error',
+        class: 'action',
+        code: 'token_refresh_failed',
+        message: `Token yenilenemedi: ${ref.message ?? ''}`,
+      };
     }
-  } catch (e) {
-    if (e instanceof KillSwitchError)
-      result = { kind: 'error', class: 'action', code: 'kill_switch', message: e.message };
-    else result = { kind: 'error', ...pub.classifyError(e) };
   }
   if (result.kind === 'error' && !result.state && committedState)
     result = { ...result, state: committedState };
