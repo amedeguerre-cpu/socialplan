@@ -3,6 +3,8 @@
  * Yerelde (S3 anahtarı yokken) parça PUT'ları /api/uploads/local/* ile binding'e yazılır.
  */
 import { Hono } from 'hono';
+import { IMAGE_MIMES } from '@socialplan/shared';
+import { safeContentType } from './media';
 import {
   uploadCompleteSchema,
   uploadInitSchema,
@@ -104,7 +106,9 @@ export const uploadRoutes = new Hono<AppEnv>()
     );
     if (!ok) throw new HttpError(403, 'bad_token', 'Geçersiz yükleme imzası');
     const obj = await c.env.MEDIA.put(key, await c.req.arrayBuffer(), {
-      httpMetadata: { contentType: c.req.header('content-type') ?? 'application/octet-stream' },
+      httpMetadata: {
+        contentType: safeContentType(c.req.header('content-type'), IMAGE_MIMES, 'image/jpeg'),
+      },
     });
     return c.body(null, 200, { ETag: obj?.httpEtag ?? '' });
   })

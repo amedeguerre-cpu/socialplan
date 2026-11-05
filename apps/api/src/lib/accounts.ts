@@ -37,6 +37,28 @@ export async function upsertAccount(
   const at = nowIso(now);
   const meta = JSON.stringify({ ...(cur ? JSON.parse(cur.meta || '{}') : {}), ...profile.meta });
   if (cur) {
+    if (
+      cur.external_id !== profile.external_id &&
+      !cur.external_id.startsWith(`${profile.external_id}:`)
+    ) {
+      // Satır başka bir platform hesabına bağlanıyor: eski hesap için planlanmış paylaşımlar yeni hesaba sessizce gitmesin.
+      await db
+        .prepare(
+          "UPDATE posts SET status = 'needs_action', error_class = 'action', last_error_code = 'account_changed', last_error_message = ?, updated_at = ? WHERE account_id = ? AND status = 'scheduled'",
+        )
+        .bind(
+          `Hesap yeniden bağlanırken değişti (@${cur.username ?? cur.external_id} → @${profile.username ?? profile.external_id}); paylaşımı kontrol edip yeniden planlayın`,
+          nowIso(now),
+          cur.id,
+        )
+        .run();
+      await db
+        .prepare(
+          "INSERT INTO post_events (id, post_id, trace_id, at, from_status, to_status, step, detail) SELECT lower(hex(randomblob(16))), id, trace_id, ?, 'scheduled', 'needs_action', step, '{\"reason\":\"account_changed\"}' FROM posts WHERE account_id = ? AND last_error_code = 'account_changed' AND updated_at = ?",
+        )
+        .bind(nowIso(now), cur.id, nowIso(now))
+        .run();
+    }
     // Eski devre dışı kayıt aynı external_id'yi tutuyorsa serbest bırak.
     await db
       .prepare(

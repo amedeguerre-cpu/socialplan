@@ -26,7 +26,8 @@ async function getVideo(db: D1Database, id: string): Promise<VideoRow> {
   return r;
 }
 
-const ACTIVE_POST = "('scheduled','processing','inbox_sent')";
+/** Videoyu silmeyi/arşivlemeyi engelleyen post durumları (işlem gerekli/hata: reconcile için video gerekebilir). */
+const ACTIVE_POST = "('scheduled','processing','inbox_sent','needs_action','failed')";
 
 export const videoRoutes = new Hono<AppEnv>()
   .get('/', async (c) => {
@@ -74,7 +75,10 @@ export const videoRoutes = new Hono<AppEnv>()
         id,
       );
       if (active)
-        throw conflict('Videonun planlanmış paylaşımları var; önce iptal edin', 'has_active_posts');
+        throw conflict(
+          'Videonun açık paylaşımları var (planlı / işleniyor / işlem gerekli / hata); önce iptal edin',
+          'has_active_posts',
+        );
     }
     const tags = body.hashtags?.map((t) => t.replace(/^#/, ''));
     await run(
@@ -149,7 +153,10 @@ export const videoRoutes = new Hono<AppEnv>()
       id,
     );
     if (active)
-      throw conflict('Videonun planlanmış paylaşımları var; önce iptal edin', 'has_active_posts');
+      throw conflict(
+        'Videonun açık paylaşımları var (planlı / işleniyor / işlem gerekli / hata); önce iptal edin',
+        'has_active_posts',
+      );
     await c.env.MEDIA.delete(cur.r2_key);
     await run(
       c.env.DB,

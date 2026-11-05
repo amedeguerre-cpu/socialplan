@@ -106,18 +106,21 @@ export const systemRoutes = new Hono<AppEnv>()
       'SELECT id, secret_blob, secret_key_version FROM accounts WHERE secret_blob IS NOT NULL',
     );
     let rotated = 0;
+    let skipped = 0;
     const failed: string[] = [];
     for (const r of rows) {
       if (r.secret_key_version === version && r.secret_blob.startsWith(`v${version}.`)) continue;
       try {
         const plain = await decryptJson<unknown>(c.env, r.secret_blob);
         const enc = await encryptJson(c.env, plain);
-        await c.env.DB.prepare(
-          'UPDATE accounts SET secret_blob = ?, secret_key_version = ? WHERE id = ?',
+        // Okunan blob hâlâ aynıysa yaz: arada token yenilendiyse (saveTokens zaten güncel anahtarla yazar) ezme.
+        const res = await c.env.DB.prepare(
+          'UPDATE accounts SET secret_blob = ?, secret_key_version = ? WHERE id = ? AND secret_blob = ?',
         )
-          .bind(enc.blob, enc.version, r.id)
+          .bind(enc.blob, enc.version, r.id, r.secret_blob)
           .run();
-        rotated++;
+        if (res.meta.changes === 1) rotated++;
+        else skipped++;
       } catch {
         failed.push(r.id);
       }
@@ -127,7 +130,7 @@ export const systemRoutes = new Hono<AppEnv>()
       failed: failed.length,
       version,
     });
-    return c.json({ rotated, failed, version, total: rows.length });
+    return c.json({ rotated, skipped, failed, version, total: rows.length });
   })
   .post('/system/run-daily', async (c) => {
     const r = await runDaily(c.env, new Date(), c.get('log'));

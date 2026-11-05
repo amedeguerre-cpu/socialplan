@@ -363,12 +363,13 @@ async function publish(ctx: PublishContext, s: IgState): Promise<StepResult<IgSt
       waitSeconds: 0,
     };
   } catch (e) {
-    // Kesin 4xx yanıtı = yayın olmadı → commit kalkar. Ağ hatası/5xx = belirsiz → commitPending kalır (reconcile).
+    // Yalnız kesin red (4xx, geçici olmayan sınıf) = yayın olmadı → commit kalkar. Ağ hatası, 5xx, is_transient,
+    // oran sınırı, 401 gibi belirsiz yanıtlar commitPending'i korur → reconcile (container PUBLISHED mı?).
     if (
       e instanceof PlatformHttpError &&
       e.status >= 400 &&
       e.status < 500 &&
-      e.classified.code !== AUTH_EXPIRED
+      e.classified.class !== 'transient'
     ) {
       return { kind: 'error', ...e.classified, state: { ...pending, commitPending: false } };
     }

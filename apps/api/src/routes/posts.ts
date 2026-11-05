@@ -19,7 +19,13 @@ import { all, first, newId, nowIso, parseJson, type SqlValue } from '../lib/db';
 import { toPostDTO } from '../lib/dto';
 import { badRequest, conflict, HttpError, notFound } from '../lib/errors';
 import { audit } from '../lib/audit';
-import { claimLease, eventStmt, humanTransition, syncVideoStatusStmt } from '../lib/posts';
+import {
+  cancelBlockedByCommit,
+  claimLease,
+  eventStmt,
+  humanTransition,
+  syncVideoStatusStmt,
+} from '../lib/posts';
 import { v } from '../lib/validate';
 import type { AccountRow, BrandRow, PostRow, VideoRow } from '../lib/rows';
 import { getSettings } from '../lib/settings';
@@ -30,12 +36,15 @@ import {
   insertPostStmt,
   type PlannedPost,
 } from '../scheduler/fill';
-import { enqueue } from '../publish/orchestrator';
-import { createHttp } from '../publish/http';
+import { enqueue, guardedHttp } from '../publish/orchestrator';
+import { isAccountAllowed } from '../env';
 import { makeYoutubePublic } from '../publish/youtube';
 import { PlatformHttpError } from '../publish/errors';
 import { readTokens } from '../lib/tokens';
 import type { AppEnv } from '../types';
+
+const COMMIT_MSG =
+  'Platformdaki son adım başladı; iptal edilemez. Sonuç kesinleşince (yayınlandı / işlem gerekli) tekrar deneyin.';
 
 type PostJoined = PostRow & {
   video_title: string | null;
@@ -267,11 +276,13 @@ export const postRoutes = new Hono<AppEnv>()
     const p = await getPost(c.env.DB, c.req.param('id'));
     if (!canTransition(p.status, 'cancelled', 'human'))
       throw invalidTransition(p.status, 'cancelled');
+    if (cancelBlockedByCommit(p)) throw conflict(COMMIT_MSG, 'commit_pending');
     const ok = await humanTransition(c.env.DB, p, c.get('actor'), {
       to: 'cancelled',
       set: { lease_owner: null, lease_until: null },
+      requireNoCommit: true,
     });
-    if (!ok) throw conflict('Paylaşım bu sırada değişti, yenileyin');
+    if (!ok) throw conflict('Paylaşım bu sırada değişti (veya platform adımı başladı), yenileyin');
     await syncVideoStatusStmt(c.env.DB, p.video_id).run();
     await audit(c.env.DB, c.get('actor'), 'post.cancel', 'post', p.id);
     return c.json<PostDTO>(await getJoined(c.env.DB, p.id));
@@ -371,10 +382,13 @@ export const postRoutes = new Hono<AppEnv>()
       p.video_id,
     );
     if (!acc) throw notFound('Hesap');
+    if (!isAccountAllowed(c.env, acc))
+      throw conflict('Hesap ALLOWED_ACCOUNT_IDS beyaz listesinde değil', 'account_not_allowed');
+    if (s.kill_switch) throw conflict('Kill switch açık: platform çağrısı yapılmaz', 'kill_switch');
     try {
       const t = await readTokens(c.env, acc);
       const vis = await makeYoutubePublic(
-        createHttp(c.env, c.get('log')),
+        guardedHttp(c.env, c.get('log')),
         t.access_token,
         p.external_id,
         video?.made_for_kids === 1,
@@ -414,13 +428,18 @@ export const postRoutes = new Hono<AppEnv>()
         continue;
       }
       if (action === 'cancel') {
-        if (!canTransition(p.status, 'cancelled', 'human')) {
-          results.push({ id, ok: false, error: 'iptal edilemez' });
+        if (!canTransition(p.status, 'cancelled', 'human') || cancelBlockedByCommit(p)) {
+          results.push({
+            id,
+            ok: false,
+            error: cancelBlockedByCommit(p) ? 'platform adımı başladı' : 'iptal edilemez',
+          });
           continue;
         }
         const ok = await humanTransition(c.env.DB, p, c.get('actor'), {
           to: 'cancelled',
           set: { lease_owner: null, lease_until: null },
+          requireNoCommit: true,
         });
         if (ok) await syncVideoStatusStmt(c.env.DB, p.video_id).run();
         results.push({ id, ok });

@@ -28,6 +28,8 @@ const CHUNKS_PER_STEP = 4;
 /** upload_url 1 saat geçerli; güvenlik payıyla 55 dk. */
 const UPLOAD_URL_TTL_MS = 55 * 60_000;
 const STATUS_WAIT_SEC = 10;
+/** Aynı post için en çok bu kadar init (403 / süre dolması sonrası yeniden başlatma). */
+const MAX_INITS = 3;
 const STATUS_CEILING_MS = 30 * 60_000;
 
 export interface TtState extends BaseState {
@@ -206,7 +208,7 @@ async function upload(ctx: PublishContext, s: TtState): Promise<StepResult<TtSta
   const total = s.totalChunks as number;
   const chunkSize = s.chunkSize as number;
   if (ctx.now.getTime() - new Date(s.uploadUrlAt ?? 0).getTime() > UPLOAD_URL_TTL_MS) {
-    if ((s.inits ?? 0) >= 3)
+    if ((s.inits ?? 0) >= MAX_INITS)
       return {
         kind: 'error',
         class: 'transient',
@@ -234,7 +236,10 @@ async function upload(ctx: PublishContext, s: TtState): Promise<StepResult<TtSta
         code: 'r2_missing',
         message: 'Video dosyası depolamada yok',
       };
-    const bytes = await obj.arrayBuffer();
+    // Parça belleğe alınmadan R2'den akışla gönderilir (64 MB tek parça 128 MB bellek sınırını zorlamasın).
+    const length = last - first + 1;
+    const fixed = new FixedLengthStream(length);
+    void obj.body.pipeTo(fixed.writable).catch(() => undefined);
     // Son parça gönderilince video gelen kutusuna düşer: geri dönüşsüz.
     if (isLast) await ctx.beginCommit({ ...state, step: 'upload' });
     const res = await ctx.http.fetch(
@@ -243,15 +248,24 @@ async function upload(ctx: PublishContext, s: TtState): Promise<StepResult<TtSta
         method: 'PUT',
         headers: {
           'content-type': ctx.video.mime || 'video/mp4',
-          'content-length': String(bytes.byteLength),
+          'content-length': String(length),
           'content-range': `bytes ${first}-${last}/${size}`,
         },
-        body: bytes,
+        body: fixed.readable,
       },
       { purpose: 'tiktok.chunk', platform: 'tiktok' },
     );
     if (res.status === 403) {
-      // upload_url doldu → parça alınmadı (son parça da olsa yükleme tamamlanmadı) → yeniden init
+      // upload_url doldu → parça alınmadı (son parça da olsa yükleme tamamlanmadı) → yeniden init (sınırlı).
+      if ((state.inits ?? 0) >= MAX_INITS) {
+        return {
+          kind: 'error',
+          class: 'action',
+          code: 'tt_upload_forbidden',
+          message: `TikTok yükleme adresi ${MAX_INITS} kez reddetti (403); izinleri ve hesabı kontrol edin`,
+          state: { ...state, commitPending: false },
+        };
+      }
       return {
         kind: 'continue',
         state: {

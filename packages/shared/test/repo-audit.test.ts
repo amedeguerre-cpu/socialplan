@@ -17,6 +17,7 @@ const ALLOWED = [
   /^SELECT_JOINED$/,
   /^w$/,
   /^where\.join\(' AND '\)$/,
+  /^t\.requireNoCommit \? ' AND commit_started_at IS NULL' : ''$/,
 ];
 
 function files(dir: string): string[] {

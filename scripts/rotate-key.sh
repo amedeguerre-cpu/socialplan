@@ -9,6 +9,11 @@ NEW="${VERSION}:$(openssl rand -base64 32)"
 echo "Mevcut TOKEN_ENC_KEY değerini yapıştırın (TOKEN_ENC_KEY_PREV olacak; ekranda görünmez):"
 read -rs OLD
 [ -n "$OLD" ] || { echo "Boş değer"; exit 1; }
+[[ "$VERSION" =~ ^[0-9]+$ ]] || { echo "Sürüm bir tam sayı olmalı"; exit 1; }
+if [[ "$OLD" =~ ^([0-9]+): ]]; then OLD_VERSION="${BASH_REMATCH[1]}"; else OLD_VERSION=1; fi
+if (( VERSION <= OLD_VERSION )); then
+  echo "Yeni sürüm ($VERSION) mevcut sürümden ($OLD_VERSION) büyük olmalı"; exit 1
+fi
 printf '%s' "$OLD" | npx wrangler secret put TOKEN_ENC_KEY_PREV
 printf '%s' "$NEW" | npx wrangler secret put TOKEN_ENC_KEY
 unset OLD

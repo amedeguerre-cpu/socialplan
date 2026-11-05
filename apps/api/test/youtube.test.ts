@@ -93,7 +93,10 @@ function ytServer(
       );
     const [, a, b] = /bytes (\d+)-(\d+)\//.exec(cr) ?? [];
     if (Number(a) !== received)
-      return new Response(null, { status: 308, headers: { range: `bytes=0-${received - 1}` } });
+      return new Response(null, {
+        status: 308,
+        headers: received ? { range: `bytes=0-${received - 1}` } : {},
+      });
     received = Number(b) + 1;
     if (received >= total) {
       if (opts.loseFinal && !finalLost) {
@@ -105,7 +108,10 @@ function ytServer(
         201,
       );
     }
-    return new Response(null, { status: 308, headers: { range: `bytes=0-${received - 1}` } });
+    return new Response(null, {
+      status: 308,
+      headers: received ? { range: `bytes=0-${received - 1}` } : {},
+    });
   };
   return mockServer({
     [`POST ${U}`]: () =>

@@ -97,6 +97,15 @@ export interface HumanTransition {
   to: PostStatus;
   set?: Record<string, string | number | null>;
   detail?: Record<string, unknown>;
+  /** Geri dönüşsüz platform çağrısı başlamışsa (commit_started_at dolu) geçişi yapma. */
+  requireNoCommit?: boolean;
+}
+
+/** İşlenmekte olan ve commit'i başlamış post iptal edilemez: sonuç önce reconcile ile kesinleşmeli. */
+export function cancelBlockedByCommit(
+  post: Pick<PostRow, 'status' | 'commit_started_at'>,
+): boolean {
+  return (post.status === 'processing' || post.status === 'scheduled') && !!post.commit_started_at;
 }
 
 /** İnsan geçişi: koşullu UPDATE (durum değişmediyse) + olay. Başarısızsa false. */
@@ -116,7 +125,7 @@ export async function humanTransition(
   const cols = Object.keys(set);
   const stmt = db
     .prepare(
-      `UPDATE posts SET ${cols.map((c) => `${c} = ?`).join(', ')} WHERE id = ? AND status = ?`,
+      `UPDATE posts SET ${cols.map((c) => `${c} = ?`).join(', ')} WHERE id = ? AND status = ?${t.requireNoCommit ? ' AND commit_started_at IS NULL' : ''}`,
     )
     .bind(...cols.map((c) => set[c] ?? null), post.id, post.status);
   const [r] = await db.batch([

@@ -81,3 +81,26 @@ describe('saat sınırları', () => {
     expect(pacificDay('2026-11-01T07:30:00Z')).toBe('2026-11-01');
   });
 });
+
+describe('DST boşluğu ve belirsiz saat (inceleme bulgusu 5)', () => {
+  it('ilkbahar boşluğunda yerel saat ileri kayar (LA 2026-03-08 02:30 → 03:30 PDT)', () => {
+    const at = zonedToUtc('2026-03-08', '02:30', 'America/Los_Angeles');
+    expect(at.toISOString()).toBe('2026-03-08T10:30:00.000Z');
+  });
+  it('sonbaharda tekrar eden saatte erken an seçilir (LA 2026-11-01 01:30 → 08:30Z PDT)', () => {
+    expect(zonedToUtc('2026-11-01', '01:30', 'America/Los_Angeles').toISOString()).toBe(
+      '2026-11-01T08:30:00.000Z',
+    );
+  });
+  it('geçiş dışındaki saatler ve İstanbul etkilenmez', () => {
+    expect(zonedToUtc('2026-03-08', '01:59', 'America/Los_Angeles').toISOString()).toBe(
+      '2026-03-08T09:59:00.000Z',
+    );
+    expect(zonedToUtc('2026-03-08', '03:00', 'America/Los_Angeles').toISOString()).toBe(
+      '2026-03-08T10:00:00.000Z',
+    );
+    expect(zonedToUtc('2026-03-29', '03:30', 'Europe/Istanbul').toISOString()).toBe(
+      '2026-03-29T00:30:00.000Z',
+    );
+  });
+});

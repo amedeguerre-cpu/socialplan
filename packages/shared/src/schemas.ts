@@ -8,6 +8,13 @@ const hm = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'HH:MM bekleniyor');
 const ymd = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'YYYY-MM-DD bekleniyor');
 const color = z.string().regex(/^#[0-9a-fA-F]{6}$/);
 
+/** Kabul edilen video türleri (izin listesi; panel kökeninden sunulduğu için serbest metin değil). */
+export const VIDEO_MIMES = ['video/mp4', 'video/quicktime', 'video/webm'] as const;
+export const IMAGE_MIMES = ['image/jpeg', 'image/png'] as const;
+export const videoMimeSchema = z.enum(VIDEO_MIMES, {
+  error: 'Desteklenmeyen dosya türü (MP4, MOV, WebM)',
+});
+
 export const brandCreateSchema = z.object({
   name: z.string().trim().min(1).max(80),
   slug: z
@@ -37,7 +44,7 @@ export const captionOverridesSchema = z
   .strict();
 
 export const videoMetaSchema = z.object({
-  mime: z.string().max(100),
+  mime: videoMimeSchema,
   originalName: z.string().max(300),
   sizeBytes: z.number().int().positive(),
   durationMs: z.number().int().nonnegative().nullable(),
@@ -54,7 +61,7 @@ export const videoMetaSchema = z.object({
 export const uploadInitSchema = z.object({
   brand_id: z.string().min(1),
   original_name: z.string().min(1).max(300),
-  mime: z.string().min(1).max(100),
+  mime: videoMimeSchema,
   size_bytes: z
     .number()
     .int()

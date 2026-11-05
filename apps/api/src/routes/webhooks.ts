@@ -73,7 +73,7 @@ export const webhookRoutes = new Hono<{ Bindings: Env }>().post('/tiktok', async
       )
         return c.json({ ok: true, ignored: post.status });
       const from = post.status;
-      if (from !== 'needs_action') assertTransition(from, 'published', 'system');
+      assertTransition(from, 'published', 'system');
       const acc = await first<AccountRow>(
         db,
         'SELECT username FROM accounts WHERE id = ?',

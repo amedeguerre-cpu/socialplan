@@ -48,10 +48,11 @@ export function allowedAccountIds(env: Env): string[] {
     .filter(Boolean);
 }
 
-/** Beyaz liste boşsa herkes; doluysa yalnız listedekiler (iç id veya platform external_id). */
+/** Beyaz liste boşsa herkes; doluysa yalnız listedeki platform hesap kimlikleri (external_id). */
 export function isAccountAllowed(env: Env, account: { id: string; external_id: string }): boolean {
   const list = allowedAccountIds(env);
-  return list.length === 0 || list.includes(account.id) || list.includes(account.external_id);
+  // Yalnız platform kimliği (external_id): iç satır yeniden bağlamada başka hesaba dönüşebilir.
+  return list.length === 0 || list.includes(account.external_id);
 }
 
 export function isLocalBaseUrl(url: string): boolean {

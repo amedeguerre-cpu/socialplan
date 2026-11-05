@@ -65,19 +65,19 @@ packages/shared/     platform limitleri, durum makinesi, saat, doğrulama, zod �
 
 ## Secret / ortam değişkenleri
 
-| Ad                                                               | Tür              | Not                                                |
-| ---------------------------------------------------------------- | ---------------- | -------------------------------------------------- |
-| ACCESS_TEAM_DOMAIN, ACCESS_AUD                                   | var              | Access takım alanı ve uygulama AUD etiketi         |
-| APP_BASE_URL                                                     | var              | panel adresi (OAuth redirect tabanı)               |
-| DRY_RUN                                                          | var              | `false` dışındaki her değer = açık                 |
-| ALLOWED_ACCOUNT_IDS                                              | var              | virgüllü; iç id veya platform external_id          |
-| R2_ACCOUNT_ID, R2_BUCKET                                         | var              | presigned URL için S3 uç noktası                   |
-| GOOGLE_CLIENT_ID, IG_APP_ID, TIKTOK_CLIENT_KEY, TELEGRAM_CHAT_ID | var              |                                                    |
-| ACCESS_DEV_BYPASS                                                | yalnız .dev.vars | production'da tanımlıysa Worker açılmaz            |
-| TOKEN_ENC_KEY, TOKEN_ENC_KEY_PREV                                | secret           | 32 bayt base64, isteğe bağlı `N:` sürüm ön eki     |
-| R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY                           | secret           | yoksa (yerel) yükleme Worker üzerinden yerel R2'ye |
-| GOOGLE_CLIENT_SECRET, IG_APP_SECRET, TIKTOK_CLIENT_SECRET        | secret           |                                                    |
-| SLACK_WEBHOOK_URL, TELEGRAM_BOT_TOKEN                            | secret           |                                                    |
+| Ad                                                               | Tür              | Not                                                 |
+| ---------------------------------------------------------------- | ---------------- | --------------------------------------------------- |
+| ACCESS_TEAM_DOMAIN, ACCESS_AUD                                   | var              | Access takım alanı ve uygulama AUD etiketi          |
+| APP_BASE_URL                                                     | var              | panel adresi (OAuth redirect tabanı)                |
+| DRY_RUN                                                          | var              | `false` dışındaki her değer = açık                  |
+| ALLOWED_ACCOUNT_IDS                                              | var              | virgüllü; yalnız platform external_id (iç id değil) |
+| R2_ACCOUNT_ID, R2_BUCKET                                         | var              | presigned URL için S3 uç noktası                    |
+| GOOGLE_CLIENT_ID, IG_APP_ID, TIKTOK_CLIENT_KEY, TELEGRAM_CHAT_ID | var              |                                                     |
+| ACCESS_DEV_BYPASS                                                | yalnız .dev.vars | production'da tanımlıysa Worker açılmaz             |
+| TOKEN_ENC_KEY, TOKEN_ENC_KEY_PREV                                | secret           | 32 bayt base64, isteğe bağlı `N:` sürüm ön eki      |
+| R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY                           | secret           | yoksa (yerel) yükleme Worker üzerinden yerel R2'ye  |
+| GOOGLE_CLIENT_SECRET, IG_APP_SECRET, TIKTOK_CLIENT_SECRET        | secret           |                                                     |
+| SLACK_WEBHOOK_URL, TELEGRAM_BOT_TOKEN                            | secret           |                                                     |
 
 ## Tamamlanan fazlar
 
@@ -134,6 +134,20 @@ packages/shared/     platform limitleri, durum makinesi, saat, doğrulama, zod �
 2. **Cron Instagram token'ını hiç yenileyemiyordu** (`scheduler/tokens.ts` yenilemeden önce `last_refreshed_at = now` yazıyordu; IG "≥ 24 sa" denetimi bu yüzden hep reddediyordu → token 60 günde düşerdi). Çözüm: `accounts.refresh_lock_until` kilidi + 10 dk başarısızlık beklemesi; `last_refreshed_at` yalnız başarılı yenilemede yazılır.
 3. **İki eşzamanlı token yenilemesi yarışıyordu** (cron + 401 sonrası; TikTok/Google refresh token dönüşümünde ikinci istek eski refresh token'la düşüp hesabı `reconnect` yapabilirdi). Çözüm: `refreshAccount` hesap başına kilit; kilidi alamayan `busy` (orkestratörde geçici `token_refresh_busy`, 60 sn); kilitten sonra kayıt yeniden okunur, başkası yenilediyse platforma gidilmez.
 4. **TikTok 5–10 MB videoda geçersiz parça planı** (`chunk_size` 10 MiB > `video_size`, `total_chunk_count` 1). Çözüm: ≤ 64 MB tek parça (`chunk_size = video_size`), büyükte 10 MiB (1000 tavanı için büyütülür). Ek: son parçada 403 (upload_url doldu) artık hata değil, yeniden init.
+
+## Bağımsız inceleme düzeltmeleri (Faz 9 sonrası)
+
+1. Commit başlamış (`commit_started_at`) işlenen/planlı post iptal edilemez (409 `commit_pending`; toplu iptalde reddedilir; UPDATE'te `commit_started_at IS NULL` koşulu yarışı kapatır).
+2. `rotate-tokens` yalnız okunan blob hâlâ aynıysa yazar (`AND secret_blob = ?`); arada yenilenen token ezilmez (`skipped`).
+3. TikTok parça PUT 403 → yeniden init en çok 3 kez (`MAX_INITS`), sonra `needs_action: tt_upload_forbidden`. Parçalar R2'den `FixedLengthStream` ile akışla gönderilir (64 MB tek parça belleğe alınmaz).
+4. Mime izin listesi (`VIDEO_MIMES`, `IMAGE_MIMES`); medya yanıtları türü izin listesinden seçer + `nosniff` + `CSP: default-src 'none'; sandbox`.
+5. `zonedToUtc`: DST boşluğunda sonraki geçerli an, tekrar eden saatte erken an.
+6. Durum makinesi: `needs_action → published` (`system`, TikTok webhook); webhook her geçişte `assertTransition`.
+7. "YouTube public yap": `guardedHttp` (kill switch) + beyaz liste denetimi.
+8. Açık post'u (planlı/işleniyor/taslakta/işlem gerekli/hata) olan video silinemez/arşivlenemez.
+
+- Olası maddeler: YouTube 308'de Range yoksa offset 0; Instagram `media_publish` geçici/belirsiz yanıtta reconcile (yalnız kesin 4xx red commit'i kaldırır); yenileme kilidi 300 sn, yenilenen token kaydı 3 kez denenir, başarısızsa bildirim; `ALLOWED_ACCOUNT_IDS` yalnız external_id; yeniden bağlamada platform hesabı değişirse planlı post'lar `needs_action: account_changed`; `rotate-key.sh` yeni sürüm > mevcut denetimi.
+- Testler: `apps/api/test/review.test.ts`, `packages/shared/test/boundaries.test.ts` (DST). saveTokens başarısızlık yolu için test yok (D1 yazım hatası taklidi zor) — kod okumasıyla doğrulandı.
 
 ## Bilinen sorunlar / sapmalar
 

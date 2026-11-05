@@ -55,7 +55,8 @@ type Outcome = { status: PostStatus; result: StepResult };
 
 /** Hesap token'ını yenile; başarısızsa hesabı 'reconnect' yapar. */
 /** Yenileme kilidi süresi; başarısız denemeden sonra aynı hesabı bu kadar süre zorlamayız. */
-const REFRESH_LOCK_SEC = 60;
+/** Platform isteği + kayıt süresinden uzun tutulur (yenilenen refresh token kaybolmasın). */
+const REFRESH_LOCK_SEC = 300;
 const REFRESH_BACKOFF_SEC = 10 * 60;
 
 /**
@@ -105,7 +106,32 @@ export async function refreshAccount(
     }
     const r = await pub.refreshToken({ env, http, log, now, account: fresh, tokens });
     if (r.ok) {
-      await saveTokens(env, account.id, r.update, now);
+      // Platform yeni (dönüşümlü) refresh token verdi: kaydetmek kritik → kısa yeniden deneme.
+      let saved = false;
+      for (let i = 0; i < 3 && !saved; i++) {
+        try {
+          await saveTokens(env, account.id, r.update, now);
+          saved = true;
+        } catch (e) {
+          log.warn('token.save_failed', {
+            attempt: i + 1,
+            err: e instanceof Error ? e.message : String(e),
+          });
+        }
+      }
+      if (!saved) {
+        await notify(
+          env,
+          {
+            kind: 'token_lost',
+            dedupeKey: `token_save_failed:${account.id}:${now.toISOString().slice(0, 13)}`,
+            title: `${PLATFORM_LABELS[account.platform]} token kaydedilemedi`,
+            text: `@${account.username ?? account.external_id}: yenilenen token veritabanına yazılamadı; hesabı yeniden bağlamanız gerekebilir.`,
+          },
+          log,
+        );
+        return { ok: false, message: 'Yenilenen token kaydedilemedi' };
+      }
       return { ok: true, tokens: r.update.tokens };
     }
     release = new Date(now.getTime() + REFRESH_BACKOFF_SEC * 1000).toISOString();

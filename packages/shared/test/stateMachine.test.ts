@@ -22,6 +22,7 @@ const cases: [PostStatus, PostStatus, Actor, boolean][] = [
   ['processing', 'failed', 'system', true],
   ['needs_action', 'scheduled', 'human', true],
   ['needs_action', 'scheduled', 'system', false],
+  ['needs_action', 'published', 'system', true], // TikTok webhook
   ['failed', 'scheduled', 'human', true],
   ['failed', 'scheduled', 'system', false],
   ['published', 'scheduled', 'human', false],

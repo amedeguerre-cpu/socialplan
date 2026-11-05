@@ -67,7 +67,11 @@ export const TRANSITIONS: Record<PostStatus, readonly Transition[]> = {
     T('cancelled', 'human'),
   ],
   published: [],
-  needs_action: [T('scheduled', 'human'), T('cancelled', 'human'), T('published', 'human')],
+  needs_action: [
+    T('scheduled', 'human'),
+    T('cancelled', 'human'),
+    T('published', 'human', 'system'),
+  ],
   failed: [T('scheduled', 'human'), T('cancelled', 'human')],
   cancelled: [],
 };

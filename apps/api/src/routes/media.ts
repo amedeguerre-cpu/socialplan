@@ -1,5 +1,6 @@
 /** Panel için medya akışı (Access arkasında). Video önizleme Range destekler. */
 import { Hono } from 'hono';
+import { IMAGE_MIMES, VIDEO_MIMES } from '@socialplan/shared';
 import { first } from '../lib/db';
 import { notFound } from '../lib/errors';
 import type { AppEnv } from '../types';
@@ -20,9 +21,23 @@ function parseRange(
   return { offset: start, length: end - start + 1 };
 }
 
+/**
+ * Sunulan tür izin listesinden seçilir (yüklenen nesnenin bildirdiği tür güvenilmez): video/* veya image/*;
+ * aksi hâlde güvenli varsayılan. nosniff + sandbox CSP ile panel kökeninde betik çalıştırılamaz.
+ */
+export function safeContentType(
+  stored: string | undefined,
+  allowed: readonly string[],
+  fallback: string,
+): string {
+  const t = (stored ?? '').split(';')[0]?.trim().toLowerCase() ?? '';
+  return allowed.includes(t) ? t : fallback;
+}
+
 async function serveObject(
   bucket: R2Bucket,
   key: string,
+  allowed: readonly string[],
   fallbackType: string,
   rangeHeader?: string,
 ): Promise<Response> {
@@ -32,7 +47,10 @@ async function serveObject(
   const obj = await bucket.get(key, range ? { range } : undefined);
   if (!obj) throw notFound('Dosya');
   const headers = new Headers({
-    'content-type': head.httpMetadata?.contentType ?? fallbackType,
+    'content-type': safeContentType(head.httpMetadata?.contentType, allowed, fallbackType),
+    'x-content-type-options': 'nosniff',
+    'content-security-policy': "default-src 'none'; sandbox",
+    'content-disposition': 'inline',
     'cache-control': 'private, max-age=86400',
     'accept-ranges': 'bytes',
     etag: head.httpEtag,
@@ -57,7 +75,7 @@ export const mediaRoutes = new Hono<AppEnv>()
       c.req.param('videoId'),
     );
     if (!r?.thumbnail_key) throw notFound('Kapak');
-    return serveObject(c.env.MEDIA, r.thumbnail_key, 'image/jpeg');
+    return serveObject(c.env.MEDIA, r.thumbnail_key, IMAGE_MIMES, 'image/jpeg');
   })
   .get('/video/:videoId', async (c) => {
     const r = await first<{ r2_key: string; mime: string }>(
@@ -66,7 +84,13 @@ export const mediaRoutes = new Hono<AppEnv>()
       c.req.param('videoId'),
     );
     if (!r) throw notFound('Video');
-    return serveObject(c.env.MEDIA, r.r2_key, r.mime, c.req.header('range'));
+    return serveObject(
+      c.env.MEDIA,
+      r.r2_key,
+      VIDEO_MIMES,
+      safeContentType(r.mime, VIDEO_MIMES, 'application/octet-stream'),
+      c.req.header('range'),
+    );
   })
   .get('/avatar/:brandId', async (c) => {
     const r = await first<{ avatar_key: string | null }>(
@@ -75,5 +99,5 @@ export const mediaRoutes = new Hono<AppEnv>()
       c.req.param('brandId'),
     );
     if (!r?.avatar_key) throw notFound('Avatar');
-    return serveObject(c.env.MEDIA, r.avatar_key, 'image/jpeg');
+    return serveObject(c.env.MEDIA, r.avatar_key, IMAGE_MIMES, 'image/jpeg');
   });

@@ -371,7 +371,8 @@ async function upload(ctx: PublishContext, s0: YtState): Promise<StepResult<YtSt
     if (res.status === 308) {
       s = {
         ...s,
-        offset: parseRangeEnd(res.headers.get('range')) || last + 1,
+        // Range yoksa Google'a göre hiç bayt alınmamıştır → 0.
+        offset: parseRangeEnd(res.headers.get('range')),
         commitPending: false,
       };
       if (isLast) return { kind: 'continue', state: { ...s, verify: true }, waitSeconds: 0 };

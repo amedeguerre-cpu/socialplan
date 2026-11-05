@@ -62,10 +62,12 @@ export function zonedToUtc(ymd: string, hm: string, tz: string): Date {
   const [y, m, d] = ymd.split('-').map(Number);
   const [hh, mm] = hm.split(':').map(Number);
   const guess = Date.UTC(y ?? 1970, (m ?? 1) - 1, d ?? 1, hh ?? 0, mm ?? 0);
-  let ts = guess - offsetMs(guess, tz);
-  const off2 = offsetMs(ts, tz);
-  ts = guess - off2;
-  return new Date(ts);
+  const c1 = guess - offsetMs(guess, tz);
+  const c2 = guess - offsetMs(c1, tz);
+  const want = `${pad(hh ?? 0)}:${pad(mm ?? 0)}`;
+  const matches = [c1, c2].filter((t) => hmInTz(t, tz) === want && ymdInTz(t, tz) === ymd);
+  // Eşleşen varsa (belirsiz saatte) erken olanı; DST boşluğunda (yerel saat yok) sonraki geçerli an.
+  return new Date(matches.length ? Math.min(...matches) : Math.max(c1, c2));
 }
 
 const pad = (n: number): string => String(n).padStart(2, '0');
