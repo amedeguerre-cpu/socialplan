@@ -5,6 +5,8 @@ import { api } from './lib/api';
 import { BrandProvider } from './lib/brand';
 import { BrandSwitcher } from './components/BrandSwitcher';
 import { VideosPage } from './pages/VideosPage';
+import { PlanningPage } from './pages/PlanningPage';
+import { SettingsPage } from './pages/SettingsPage';
 
 const NAV = [
   { to: '/analiz', label: 'Analiz' },
@@ -45,10 +47,10 @@ export function App() {
           <Routes>
             <Route path="/" element={<Navigate to="/planlama" replace />} />
             <Route path="/analiz" element={<Placeholder title="Analiz" />} />
-            <Route path="/planlama/*" element={<Placeholder title="Planlama" />} />
+            <Route path="/planlama/*" element={<PlanningPage />} />
             <Route path="/videolar" element={<VideosPage />} />
             <Route path="/hesaplar" element={<Placeholder title="Hesaplar" />} />
-            <Route path="/ayarlar" element={<Placeholder title="Ayarlar" />} />
+            <Route path="/ayarlar" element={<SettingsPage />} />
             <Route path="*" element={<Placeholder title="Sayfa bulunamadı" />} />
           </Routes>
         </main>

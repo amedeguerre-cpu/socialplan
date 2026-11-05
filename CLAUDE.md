@@ -80,7 +80,22 @@ packages/shared/     platform limitleri, durum makinesi, saat, doğrulama, zod �
 ## Tamamlanan fazlar
 
 - [x] Faz 0 — iskelet
+- [x] Faz 2 — slotlar, doldurma (tek batch), elle tarih-saat, cron, Queue orkestratörü, durum makinesi, kilit, retry, kill switch, kaçırılan slot, DryRun, şimdi paylaş, post_events, liste görünümü, ayarlar sayfası, audit log
 - [x] Faz 1 — marka CRUD, presigned multipart yükleme (S3 anahtarı yoksa yerel /api/uploads/local/*), doğrulama, thumbnail, kuyruk sıralama (kesirli), caption override, yinelenen içerik uyarısı, medya akışı (Range)
+
+## Yayın hattı (Faz 2)
+
+- Cron (`scheduler/cron.ts`): kill switch kapalıysa due post'ları (`scheduled_at <= now`, marka duraklatılmamış) kilitler (`lease_owner = cron:<uuid>`) ve `sendBatch`; tolerans (`missed_slot_grace_min`) aşıldıysa `needs_action: missed_slot`. Ardından reaper, TikTok hatırlatması, token yenileme; İstanbul 04:10'da günlük işler (`scheduler/daily.ts`).
+- Mesaj: `{ postId, traceId, leaseOwner }`. Tüketici aynı sahiple kilidi yeniler (`acquireLease`), adımı yürütür, sonucu `WHERE status='processing' AND lease_owner=?` ile yazar.
+- Geçici hata: post `processing` kalır, `attempt_count` artar, mesaj 1/5/25 dk (+%0–20 jitter, Retry-After) gecikmeyle yeniden gönderilir; 3 yeniden denemeden sonraki hata (`attempt_count > 3`) → `failed`.
+- `AUTH_EXPIRED` kodu: orkestratör token'ı yeniler ve adımı bir kez tekrarlar; yenileme başarısızsa hesap `reconnect`, post `needs_action`.
+- Commit koruması: publisher geri dönüşsüz çağrıdan önce `ctx.beginCommit(state)` (commit_started_at + `commitPending: true`) çağırır; devam eden mesajda `commitPending` ise `reconcile` çalışır.
+- Kill switch: `guardedHttp` her dış çağrıdan önce D1'den okur → `KillSwitchError` → `needs_action: kill_switch`.
+- Lease = adım beklemesi + 15 dk; reaper süresi dolanları `reaper:<uuid>` sahibiyle yeniden kuyruğa alır.
+- DRY_RUN publisher: prepare → upload (1–4 parça) → processing → commit. Instagram/YouTube `published` (visibility `dry-run`, URL `https://dry-run.invalid/...`), TikTok gerçek akıştaki gibi `inbox_sent`.
+- DRY_RUN'da `POST /api/accounts/demo` OAuth'suz demo hesap ekler (paneli denemek için).
+- Yerel cron tetikleme: `wrangler dev --test-scheduled` + `curl "localhost:8787/cdn-cgi/handler/scheduled?cron=*+*+*+*+*"`. Elle günlük işler: `POST /api/system/run-daily`.
+- Testlerde depolama dosya içi testler arasında paylaşımlı: testler kendi markalarının post'larını süzerek doğrular.
 
 ## Yükleme notları
 

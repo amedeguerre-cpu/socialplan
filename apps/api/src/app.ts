@@ -8,6 +8,9 @@ import { brandRoutes } from './routes/brands';
 import { uploadRoutes } from './routes/uploads';
 import { videoRoutes } from './routes/videos';
 import { mediaRoutes } from './routes/media';
+import { slotRoutes } from './routes/slots';
+import { postRoutes } from './routes/posts';
+import { accountRoutes } from './routes/accounts';
 import type { AppEnv } from './types';
 
 const api = new Hono<AppEnv>()
@@ -17,7 +20,10 @@ const api = new Hono<AppEnv>()
   .route('/brands', brandRoutes)
   .route('/uploads', uploadRoutes)
   .route('/videos', videoRoutes)
-  .route('/media', mediaRoutes);
+  .route('/media', mediaRoutes)
+  .route('/slots', slotRoutes)
+  .route('/posts', postRoutes)
+  .route('/accounts', accountRoutes);
 
 export const app = new Hono<AppEnv>()
   .use('*', async (c, next) => {

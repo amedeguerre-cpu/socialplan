@@ -1,4 +1,5 @@
 import type { Context } from 'hono';
+import { HTTPException } from 'hono/http-exception';
 
 export class HttpError extends Error {
   constructor(
@@ -19,6 +20,8 @@ export const conflict = (msg: string, code = 'conflict'): HttpError =>
 
 export function errorResponse(c: Context, e: unknown): Response {
   if (e instanceof HttpError) return c.json({ error: e.code, message: e.message }, e.status);
+  if (e instanceof HTTPException)
+    return c.json({ error: 'bad_request', message: e.message || 'Geçersiz istek' }, e.status);
   console.error(
     JSON.stringify({
       level: 'error',
