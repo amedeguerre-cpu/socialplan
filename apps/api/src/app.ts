@@ -12,6 +12,7 @@ import { slotRoutes } from './routes/slots';
 import { postRoutes } from './routes/posts';
 import { accountRoutes } from './routes/accounts';
 import { oauthRoutes } from './routes/oauth';
+import { webhookRoutes } from './routes/webhooks';
 import type { AppEnv } from './types';
 
 const api = new Hono<AppEnv>()
@@ -40,6 +41,7 @@ export const app = new Hono<AppEnv>()
     await next();
   })
   .route('/api', api)
+  .route('/webhooks', webhookRoutes)
   .all('/api/*', (c) => c.json({ error: 'not_found', message: 'Uç bulunamadı' }, 404))
   .all('*', (c) => c.env.ASSETS.fetch(c.req.raw));
 

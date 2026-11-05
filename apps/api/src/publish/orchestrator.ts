@@ -399,7 +399,7 @@ async function applyResult(
             kind: 'tiktok_inbox',
             dedupeKey: `tiktok_inbox:${post.id}`,
             title: "TikTok'ta yayınla",
-            text: `@${account?.username ?? account?.external_id ?? '?'} hesabının TikTok gelen kutusuna taslak gönderildi. Uygulamadan yayınlayıp panelde "Yayınladım" işaretleyin.`,
+            text: `@${account?.username ?? account?.external_id ?? '?'} hesabının TikTok gelen kutusuna taslak gönderildi. Uygulamadan yayınlayıp panelde "Yayınladım" işaretleyin.${post.caption_snapshot ? `\nMetin: ${post.caption_snapshot.slice(0, 300)}` : ''}`,
             url: `${env.APP_BASE_URL}/planlama?post=${post.id}`,
           },
           log,

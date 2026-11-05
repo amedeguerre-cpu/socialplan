@@ -25,3 +25,21 @@ Ekibimizin kendi "Buffer"ı: kısa dikey videoları marka bazında kuyruğa alı
 8. Bir videoyu Videolar ekranından birkaç dakika sonrasına planlayın; Planlama → Liste'de durumu izleyin (Yayınlandı + "Platformda aç").
 
 Token 60 gün geçerlidir; bitişe 10 gün kala cron otomatik yeniler (token en az 24 saat yaşında olmalı).
+
+## TikTok: geliştirici uygulaması ve "taslağa gönder"
+
+TikTok, audit'ten geçmemiş istemcilerin yalnız `SELF_ONLY` paylaşmasına izin verir ve kendi hesaplarına yükleme aracını audit için uygun saymaz. Bu yüzden SocialPlan TikTok'ta **taslağa gönder (Upload / inbox)** modunda çalışır: saat gelince video hesabın TikTok gelen kutusuna düşer, uygulamadan tek dokunuşla yayınlarsınız.
+
+1. [developers.tiktok.com](https://developers.tiktok.com/) → **Manage apps → Connect an app**.
+2. Ürünler: **Login Kit** ve **Content Posting API** (yalnız _Upload_ / `video.upload`; _Direct Post_ gerekmez). Ayrıca metrikler için `video.list`.
+3. Login Kit → **Redirect URI**: `https://<panel-adresi>/api/oauth/tiktok/callback`.
+4. Uygulamayı **Sandbox**'ta tutun; _Sandbox → Target users_ bölümüne kendi TikTok hesabınızı ekleyin (sandbox'ta yalnız bu hesaplar bağlanabilir).
+5. Değişkenler:
+   ```bash
+   # wrangler.jsonc → vars.TIKTOK_CLIENT_KEY = "<client key>"
+   pnpm --filter @socialplan/api exec wrangler secret put TIKTOK_CLIENT_SECRET
+   ```
+6. (İsteğe bağlı) **Webhook**: _Webhooks → Callback URL_ = `https://<panel-adresi>/webhooks/tiktok`. Cloudflare Access'te bu yol için **Bypass** politikası ekleyin (aşağıda). Webhook gelirse TikTok'ta herkese açık olan paylaşım panelde kendiliğinden "Yayınlandı" olur; gelmezse panelden **Yayınladım** deyin.
+7. Hesaplar → TikTok **Bağla**. Paylaşım saati gelince bildirim ("TikTok'ta yayınla") gelir; 1 saat içinde yayınlanmazsa bir kez daha hatırlatılır.
+
+Not: 24 saatte gelen kutusunda bekleyen taslak sayısı sınırlıdır (`spam_risk_too_many_pending_share` → "İşlem gerekli"). Bekleyen taslakları uygulamadan yayınlayın veya silin.
