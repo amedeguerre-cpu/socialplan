@@ -4,12 +4,20 @@ import { accessMiddleware, originMiddleware } from './auth/access';
 import { createLogger } from './lib/log';
 import { errorResponse } from './lib/errors';
 import { systemRoutes } from './routes/system';
+import { brandRoutes } from './routes/brands';
+import { uploadRoutes } from './routes/uploads';
+import { videoRoutes } from './routes/videos';
+import { mediaRoutes } from './routes/media';
 import type { AppEnv } from './types';
 
 const api = new Hono<AppEnv>()
   .use('*', accessMiddleware)
   .use('*', originMiddleware)
-  .route('/', systemRoutes);
+  .route('/', systemRoutes)
+  .route('/brands', brandRoutes)
+  .route('/uploads', uploadRoutes)
+  .route('/videos', videoRoutes)
+  .route('/media', mediaRoutes);
 
 export const app = new Hono<AppEnv>()
   .use('*', async (c, next) => {

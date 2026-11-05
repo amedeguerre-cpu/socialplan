@@ -80,6 +80,15 @@ packages/shared/     platform limitleri, durum makinesi, saat, doğrulama, zod �
 ## Tamamlanan fazlar
 
 - [x] Faz 0 — iskelet
+- [x] Faz 1 — marka CRUD, presigned multipart yükleme (S3 anahtarı yoksa yerel /api/uploads/local/*), doğrulama, thumbnail, kuyruk sıralama (kesirli), caption override, yinelenen içerik uyarısı, medya akışı (Range)
+
+## Yükleme notları
+
+- Parça boyu 16 MiB (`lib/r2.ts PART_SIZE`); tarayıcı 4 paralel PUT, parça başına 3 deneme (`apps/web/src/lib/upload.ts`).
+- `content_hash` = SHA-256(boyut + baş/orta/son 4 MiB) — örneklemeli özet (çok GB'lık dosyada tam özet pahalı).
+- Thumbnail tarayıcıda canvas ile JPEG (uzun kenar ≤ 720 px), presigned PUT.
+- Video meta: mp4box (ftyp+moov kutuları beslenir), moov konumu en üst kutu taramasıyla, süre/en/boy video elementiyle.
+- Sunucu meta veriyi yeniden doğrular (`validateVideo`), boyutu R2 nesnesinden alır.
 
 ## Bilinen sorunlar
 
