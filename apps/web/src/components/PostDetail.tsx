@@ -198,6 +198,17 @@ function PostPanel({
           <p>
             TikTok uygulamasında bildirimi açıp tek dokunuşla yayınlayın, sonra burada işaretleyin.
           </p>
+          {post.caption_snapshot && (
+            <Button
+              onClick={() =>
+                void navigator.clipboard
+                  .writeText(post.caption_snapshot ?? '')
+                  .then(() => setMsg('Metin kopyalandı'))
+              }
+            >
+              Metni kopyala (TikTok açıklaması)
+            </Button>
+          )}
           <input
             value={url}
             onChange={(e) => setUrl(e.target.value)}

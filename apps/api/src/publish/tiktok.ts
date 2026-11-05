@@ -450,17 +450,16 @@ export const tiktokOAuth: OAuthAdapter = {
       { method: 'GET', headers: { authorization: `Bearer ${tokens.access_token}` } },
       { purpose: 'tiktok.profile', platform: 'tiktok' },
     );
-    const j =
-      await readJson<
-        TtBody<{
-          user?: {
-            open_id?: string;
-            avatar_url?: string;
-            display_name?: string;
-            username?: string;
-          };
-        }>
-      >(res);
+    const j = await readJson<
+      TtBody<{
+        user?: {
+          open_id?: string;
+          avatar_url?: string;
+          display_name?: string;
+          username?: string;
+        };
+      }>
+    >(res);
     const u = j?.data?.user;
     const openId = u?.open_id ?? (tokens.open_id as string | undefined);
     if (!openId)
@@ -565,18 +564,17 @@ export const tiktokPublisher: Publisher<TtState> = {
         },
         { purpose: 'tiktok.metrics', platform: 'tiktok' },
       );
-      const j =
-        await readJson<
-          TtBody<{
-            videos?: {
-              id: string;
-              view_count?: number;
-              like_count?: number;
-              comment_count?: number;
-              share_count?: number;
-            }[];
-          }>
-        >(res);
+      const j = await readJson<
+        TtBody<{
+          videos?: {
+            id: string;
+            view_count?: number;
+            like_count?: number;
+            comment_count?: number;
+            share_count?: number;
+          }[];
+        }>
+      >(res);
       if (!res.ok) {
         ctx.log.warn('tiktok.metrics_failed', { status: res.status });
         continue;
