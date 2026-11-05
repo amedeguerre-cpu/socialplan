@@ -39,6 +39,7 @@ export interface AccountRow {
   last_refreshed_at: string | null;
   last_error: string | null;
   meta: string;
+  refresh_lock_until?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -110,6 +111,7 @@ export interface PostRow {
   last_error_message: string | null;
   caption_snapshot: string | null;
   published_at: string | null;
+  msg_seq?: number;
   created_at: string;
   updated_at: string;
 }

@@ -218,7 +218,8 @@ describe('iki kez yayın olmaz', () => {
     expect(results.filter(Boolean)).toHaveLength(1);
     const winner = results[0] ? 'A' : 'B';
     const loser = winner === 'A' ? 'B' : 'A';
-    expect(await acquireLease(env.DB, p!.id, winner, at)).toBe(true);
+    // dağıtım kilidi aynı sahip için bile ikinci kez alınamaz (devam continueLease ile)
+    expect(await acquireLease(env.DB, p!.id, winner, at)).toBe(false);
     expect(await acquireLease(env.DB, p!.id, loser, at)).toBe(false);
     // 16 dk sonra lease düşer → devralınır
     const later = new Date(at.getTime() + 16 * 60_000);

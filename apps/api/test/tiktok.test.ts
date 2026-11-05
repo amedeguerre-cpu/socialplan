@@ -5,7 +5,7 @@ import { api, BASE, rawFetch } from './helpers';
 import { createBrand, insertAccount, uploadVideo } from './fixtures';
 import { drain, queueEnv } from './queue';
 import { json, mockServer } from './mockServer';
-import { acquireLease } from '../src/lib/posts';
+import { claimLease } from '../src/lib/posts';
 import { hmacSha256Hex } from '../src/lib/crypto';
 import { chunkPlan, chunkRange } from '../src/publish/tiktok';
 import type { Env } from '../src/env';
@@ -34,8 +34,11 @@ async function setup(bytes?: Uint8Array) {
     .bind(new Date(Date.now() - 1000).toISOString(), post!.id)
     .run();
   const { env: qenv, sent } = queueEnv(LIVE);
-  await acquireLease(env.DB, post!.id, 'o', new Date());
-  sent.push({ body: { postId: post!.id, traceId: post!.trace_id, leaseOwner: 'o' }, delay: 0 });
+  const seq = (await claimLease(env.DB, post!.id, 'o', new Date())) as number;
+  sent.push({
+    body: { postId: post!.id, traceId: post!.trace_id, leaseOwner: 'o', seq },
+    delay: 0,
+  });
   return { post: post!, accountId, qenv, sent, videoId: v.id };
 }
 const row = (id: string) =>
@@ -70,19 +73,29 @@ function routes(over: Parameters<typeof mockServer>[0] = {}) {
 }
 
 describe('TikTok parça planı', () => {
-  it('5 MB altı tek parça; büyükte floor(size/chunk), son parça kalanı alır', () => {
+  it('≤ 64 MB tek parça (chunk_size = video_size); 5–10 MB arası da geçerli', () => {
     expect(chunkPlan(3 * MB)).toEqual({ chunkSize: 3 * MB, totalChunks: 1 });
-    const size = 47 * MB + 123;
+    expect(chunkPlan(7 * MB)).toEqual({ chunkSize: 7 * MB, totalChunks: 1 }); // regresyon
+    expect(chunkPlan(64 * MB)).toEqual({ chunkSize: 64 * MB, totalChunks: 1 });
+  });
+  it('büyükte floor(size/chunk), son parça kalanı alır ve ≤ 128 MB', () => {
+    const size = 147 * MB + 123;
     const p = chunkPlan(size);
-    expect(p).toEqual({ chunkSize: 10 * MB, totalChunks: 4 });
-    expect(chunkRange(3, size, p.chunkSize, p.totalChunks)).toEqual({
-      first: 30 * MB,
-      last: size - 1,
-    });
-    expect(chunkRange(0, size, p.chunkSize, p.totalChunks)).toEqual({
-      first: 0,
-      last: 10 * MB - 1,
-    });
+    expect(p).toEqual({ chunkSize: 10 * MB, totalChunks: 14 });
+    const last = chunkRange(13, size, p.chunkSize, p.totalChunks);
+    expect(last).toEqual({ first: 130 * MB, last: size - 1 });
+    expect(last.last - last.first + 1).toBeLessThanOrEqual(128 * MB);
+  });
+  it('4 GB: 1000 parça tavanı aşılmaz, parçalar 5–64 MB, son parça ≤ 128 MB', () => {
+    for (const size of [4096 * MB, 4096 * MB - 1, 65 * MB, 10 * MB * 1000 + 5]) {
+      const p = chunkPlan(size);
+      expect(p.totalChunks).toBeLessThanOrEqual(1000);
+      expect(p.chunkSize).toBeGreaterThanOrEqual(5 * MB);
+      expect(p.chunkSize).toBeLessThanOrEqual(64 * MB);
+      const l = chunkRange(p.totalChunks - 1, size, p.chunkSize, p.totalChunks);
+      expect(l.last).toBe(size - 1);
+      expect(l.last - l.first + 1).toBeLessThanOrEqual(128 * MB);
+    }
   });
 });
 
@@ -109,7 +122,7 @@ describe('TikTok publisher (taslağa gönder)', () => {
     expect(put?.bodyBytes).toBe(1024);
   });
 
-  it('çok parçalı yükleme (17 MiB → 1 parça kalan emer) sırayla gönderilir', async () => {
+  it('17 MiB → tek parça (chunk_size = video_size)', async () => {
     const m = mockServer(routes());
     const bytes = new Uint8Array(17 * MB);
     const { post, qenv, sent } = await setup(bytes);

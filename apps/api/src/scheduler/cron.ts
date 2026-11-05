@@ -6,7 +6,7 @@ import { PLATFORM_LABELS, zonedParts } from '@socialplan/shared';
 import type { Env, PublishMessage } from '../env';
 import { all, newId, nowIso } from '../lib/db';
 import { createLogger, type Logger } from '../lib/log';
-import { acquireLease, eventStmt } from '../lib/posts';
+import { claimLease, eventStmt } from '../lib/posts';
 import type { PostRow } from '../lib/rows';
 import { getSettings } from '../lib/settings';
 import { notify } from '../notify';
@@ -73,9 +73,10 @@ export async function dispatchDue(
       continue;
     }
     const owner = `cron:${newId()}`;
-    if (await acquireLease(db, p.id, owner, now)) {
+    const seq = await claimLease(db, p.id, owner, now);
+    if (seq !== null) {
       await eventStmt(db, p, 'scheduled', 'processing', null, { by: 'cron' }, now).run();
-      msgs.push({ body: { postId: p.id, traceId: p.trace_id, leaseOwner: owner } });
+      msgs.push({ body: { postId: p.id, traceId: p.trace_id, leaseOwner: owner, seq } });
       dispatched++;
     }
   }
@@ -94,7 +95,8 @@ export async function reap(env: Env, now: Date, log: Logger): Promise<number> {
   let n = 0;
   for (const p of stale) {
     const owner = `reaper:${newId()}`;
-    if (await acquireLease(env.DB, p.id, owner, now)) {
+    const seq = await claimLease(env.DB, p.id, owner, now);
+    if (seq !== null) {
       await eventStmt(
         env.DB,
         p,
@@ -104,7 +106,7 @@ export async function reap(env: Env, now: Date, log: Logger): Promise<number> {
         { reaped_from: p.lease_owner },
         now,
       ).run();
-      await env.PUBLISH_QUEUE.send({ postId: p.id, traceId: p.trace_id, leaseOwner: owner });
+      await env.PUBLISH_QUEUE.send({ postId: p.id, traceId: p.trace_id, leaseOwner: owner, seq });
       n++;
     }
   }

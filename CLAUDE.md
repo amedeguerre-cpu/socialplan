@@ -82,6 +82,7 @@ packages/shared/     platform limitleri, durum makinesi, saat, doğrulama, zod �
 ## Tamamlanan fazlar
 
 - [x] Faz 0 — iskelet
+- [x] Faz 9 — Hata avı: temiz kurulum (`--frozen-lockfile`), sıfır D1'e migration, wrangler dev duman testi; 4 hata düzeltildi (aşağıda), regresyon testleri (`apps/api/test/bughunt.test.ts`, `packages/shared/test/boundaries.test.ts`, `packages/shared/test/repo-audit.test.ts`)
 - [x] Faz 8 — Sağlamlaştırma: kill switch kırmızı bandı + DRY_RUN bandı, bildirim testleri (dedupe, maske), anahtar döndürme (`scripts/rotate-key.sh` + `POST /api/system/rotate-tokens` + Ayarlar → Bakım), audit log ekranı, README (Cloudflare/Access/R2 CORS/D1/Queue/secret/deploy, Google, Meta, TikTok, Slack/Telegram, yedek), `infra/r2-cors.json`, `scripts/commit.sh`
 - [x] Faz 7 — Metrikler: günlük cron (`scheduler/metrics.ts`, 60 gün izleme; IG insights, YT videos.list statistics + birim kotası, TikTok video/query; TikTok için platform_state.post_id), `GET /api/analytics` (son metrik/post, günlük seri, gün×saat ısı haritası, en iyi saatler = (beğeni+yorum+paylaşım+kaydetme)/görüntülenme ortancası, kovada en az 3 post), takvimde en iyi 3 saat pembe, Analiz sayfası (Recharts, dataviz paleti, tek eksen), DRY_RUN'da `POST /api/analytics/demo`
 - [x] Faz 6 — Panel: haftalık takvim (saat satırları, hafta gezinme, arama, dnd-kit sürükle-bırak → PATCH scheduled_at; hata/işlem gerekli post taşınınca yeniden planlanır; boş slot kutusu → video ata; en iyi saatler pembe), detay paneli (platform sekmeleri, metin, Şimdi paylaş, İptal, Tekrar dene, Yayınladım, YouTube public yap, olay geçmişi), liste (filtre, sayfalama, toplu iptal/tekrar dene). Playwright ile uçtan uca denendi (yükleme → slot → doldur → takvim → sürükle-bırak)
@@ -126,6 +127,13 @@ packages/shared/     platform limitleri, durum makinesi, saat, doğrulama, zod �
 - Thumbnail tarayıcıda canvas ile JPEG (uzun kenar ≤ 720 px), presigned PUT.
 - Video meta: mp4box (ftyp+moov kutuları beslenir), moov konumu en üst kutu taramasıyla, süre/en/boy video elementiyle.
 - Sunucu meta veriyi yeniden doğrular (`validateVideo`), boyutu R2 nesnesinden alır.
+
+## Faz 9'da düzeltilen hatalar
+
+1. **Queue çift teslimi aynı adımı iki kez çalıştırabiliyordu** (`lib/posts.ts` eski `acquireLease`: aynı `lease_owner` her zaman kilidi yeniden alıyordu → iki kopya eşzamanlı `media_publish` yapabilirdi). Çözüm: migration 0002 `posts.msg_seq`; dağıtım `claimLease` sırayı artırır, tüketici `continueLease` yalnız `msg_seq` eşleşirse devam eder; mesajda `seq` var.
+2. **Cron Instagram token'ını hiç yenileyemiyordu** (`scheduler/tokens.ts` yenilemeden önce `last_refreshed_at = now` yazıyordu; IG "≥ 24 sa" denetimi bu yüzden hep reddediyordu → token 60 günde düşerdi). Çözüm: `accounts.refresh_lock_until` kilidi + 10 dk başarısızlık beklemesi; `last_refreshed_at` yalnız başarılı yenilemede yazılır.
+3. **İki eşzamanlı token yenilemesi yarışıyordu** (cron + 401 sonrası; TikTok/Google refresh token dönüşümünde ikinci istek eski refresh token'la düşüp hesabı `reconnect` yapabilirdi). Çözüm: `refreshAccount` hesap başına kilit; kilidi alamayan `busy` (orkestratörde geçici `token_refresh_busy`, 60 sn); kilitten sonra kayıt yeniden okunur, başkası yenilediyse platforma gidilmez.
+4. **TikTok 5–10 MB videoda geçersiz parça planı** (`chunk_size` 10 MiB > `video_size`, `total_chunk_count` 1). Çözüm: ≤ 64 MB tek parça (`chunk_size = video_size`), büyükte 10 MiB (1000 tavanı için büyütülür). Ek: son parçada 403 (upload_url doldu) artık hata değil, yeniden init.
 
 ## Bilinen sorunlar / sapmalar
 

@@ -19,7 +19,7 @@ import { all, first, newId, nowIso, parseJson, type SqlValue } from '../lib/db';
 import { toPostDTO } from '../lib/dto';
 import { badRequest, conflict, HttpError, notFound } from '../lib/errors';
 import { audit } from '../lib/audit';
-import { acquireLease, eventStmt, humanTransition, syncVideoStatusStmt } from '../lib/posts';
+import { claimLease, eventStmt, humanTransition, syncVideoStatusStmt } from '../lib/posts';
 import { v } from '../lib/validate';
 import type { AccountRow, BrandRow, PostRow, VideoRow } from '../lib/rows';
 import { getSettings } from '../lib/settings';
@@ -63,9 +63,10 @@ function invalidTransition(from: PostStatus, to: PostStatus): HttpError {
 async function dispatchNow(env: AppEnv['Bindings'], postId: string, now: Date): Promise<boolean> {
   const p = await getPost(env.DB, postId);
   const owner = `now:${newId()}`;
-  if (!(await acquireLease(env.DB, postId, owner, now))) return false;
+  const seq = await claimLease(env.DB, postId, owner, now);
+  if (seq === null) return false;
   await eventStmt(env.DB, p, 'scheduled', 'processing', null, { by: 'publish_now' }, now).run();
-  await enqueue(env, { postId, traceId: p.trace_id, leaseOwner: owner });
+  await enqueue(env, { postId, traceId: p.trace_id, leaseOwner: owner, seq });
   return true;
 }
 

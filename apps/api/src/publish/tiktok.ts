@@ -49,13 +49,18 @@ interface TtBody<T> {
   error?: { code?: string; message?: string; log_id?: string };
 }
 
+/**
+ * Parça planı (TikTok FILE_UPLOAD): ≤ 64 MB tek parça (chunk_size = video_size); büyükte 10 MiB
+ * (1000 parça tavanı için gerekirse büyütülür), total_chunk_count = floor(size / chunk), son parça kalanı
+ * emer (< 2 × chunk ≤ 128 MB). Eski hata: 5–10 MB arası dosyada chunk_size > video_size bildiriliyordu.
+ */
 export function chunkPlan(
   size: number,
   chunk = TT_CHUNK,
 ): { chunkSize: number; totalChunks: number } {
-  if (size <= 5 * MB) return { chunkSize: size, totalChunks: 1 };
-  const total = Math.max(1, Math.floor(size / chunk));
-  return { chunkSize: chunk, totalChunks: Math.min(total, 1000) };
+  if (size <= 64 * MB) return { chunkSize: size, totalChunks: 1 };
+  const c = Math.max(chunk, Math.ceil(size / 1000));
+  return { chunkSize: c, totalChunks: Math.max(1, Math.floor(size / c)) };
 }
 
 /** n. parçanın bayt aralığı (son parça kalanı alır). */
@@ -245,11 +250,18 @@ async function upload(ctx: PublishContext, s: TtState): Promise<StepResult<TtSta
       },
       { purpose: 'tiktok.chunk', platform: 'tiktok' },
     );
-    if (res.status === 403 && !isLast) {
-      // upload_url doldu → yeniden init
+    if (res.status === 403) {
+      // upload_url doldu → parça alınmadı (son parça da olsa yükleme tamamlanmadı) → yeniden init
       return {
         kind: 'continue',
-        state: { ...state, step: 'init', publishId: undefined, uploadUrl: undefined, nextChunk: 0 },
+        state: {
+          ...state,
+          step: 'init',
+          publishId: undefined,
+          uploadUrl: undefined,
+          nextChunk: 0,
+          commitPending: false,
+        },
         waitSeconds: 0,
       };
     }

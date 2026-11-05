@@ -12,9 +12,30 @@ export function leaseUntil(now: Date, waitSec = 0): string {
 }
 
 /**
- * Tek koşullu UPDATE ile kilit. Zamanı gelmiş 'scheduled' post'u ya da aynı sahibin / süresi dolmuş
- * lease'li 'processing' post'unu alır. changes = 1 değilse kilit alınamamıştır.
+ * Tek koşullu UPDATE ile kilit (dağıtım: cron, şimdi paylaş, tekrar dene, reaper). Zamanı gelmiş 'scheduled'
+ * post'u ya da lease'i dolmuş 'processing' post'u alır ve adım sırasını (msg_seq) artırır.
+ * Dönen değer: yeni msg_seq (mesaja yazılır) veya kilit alınamadıysa null.
  */
+export async function claimLease(
+  db: D1Database,
+  postId: string,
+  owner: string,
+  now: Date,
+  waitSec = 0,
+): Promise<number | null> {
+  const n = nowIso(now);
+  const r = await db
+    .prepare(
+      `UPDATE posts SET status = 'processing', lease_owner = ?, lease_until = ?, msg_seq = msg_seq + 1, updated_at = ?
+       WHERE id = ? AND ((status = 'scheduled' AND scheduled_at <= ?) OR (status = 'processing' AND lease_until < ?))
+       RETURNING msg_seq`,
+    )
+    .bind(owner, leaseUntil(now, waitSec), n, postId, n, n)
+    .first<{ msg_seq: number }>();
+  return r?.msg_seq ?? null;
+}
+
+/** Geriye uyumluluk: kilit alındı mı? */
 export async function acquireLease(
   db: D1Database,
   postId: string,
@@ -22,15 +43,28 @@ export async function acquireLease(
   now: Date,
   waitSec = 0,
 ): Promise<boolean> {
-  const n = nowIso(now);
+  return (await claimLease(db, postId, owner, now, waitSec)) !== null;
+}
+
+/**
+ * Tüketici: yalnız aynı sahip VE beklenen adım sırası (msg_seq) eşleşirse devam eder. Queue en-az-bir-kez
+ * teslim eder; aynı mesajın ikinci kopyası sıra artmış olduğundan düşer (adım iki kez çalışmaz).
+ */
+export async function continueLease(
+  db: D1Database,
+  postId: string,
+  owner: string,
+  seq: number,
+  now: Date,
+): Promise<number | null> {
   const r = await db
     .prepare(
-      `UPDATE posts SET status = 'processing', lease_owner = ?, lease_until = ?, updated_at = ?
-       WHERE id = ? AND ((status = 'scheduled' AND scheduled_at <= ?) OR (status = 'processing' AND (lease_owner = ? OR lease_until < ?)))`,
+      `UPDATE posts SET lease_until = ?, msg_seq = msg_seq + 1, updated_at = ?
+       WHERE id = ? AND status = 'processing' AND lease_owner = ? AND msg_seq = ? RETURNING msg_seq`,
     )
-    .bind(owner, leaseUntil(now, waitSec), n, postId, n, owner, n)
-    .run();
-  return r.meta.changes === 1;
+    .bind(leaseUntil(now), nowIso(now), postId, owner, seq)
+    .first<{ msg_seq: number }>();
+  return r?.msg_seq ?? null;
 }
 
 export function eventStmt(

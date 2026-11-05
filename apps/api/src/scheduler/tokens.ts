@@ -23,18 +23,11 @@ export async function refreshDueTokens(env: Env, now: Date, log: Logger): Promis
     if (!pub) continue;
     const expires = new Date(a.token_expires_at as string).getTime();
     if (expires - now.getTime() > pub.refreshLeadSeconds * 1000) continue;
-    // Aynı hesabı dakikada bir zorlamayı önle: son denemeden 10 dk geçmeli.
-    if (
-      a.last_refreshed_at &&
-      now.getTime() - new Date(a.last_refreshed_at).getTime() < 10 * 60_000
-    )
-      continue;
-    await env.DB.prepare('UPDATE accounts SET last_refreshed_at = ? WHERE id = ?')
-      .bind(nowIso(now), a.id)
-      .run();
+    // Kilit + başarısızlık sonrası 10 dk bekleme refreshAccount içinde (refresh_lock_until).
+    // Not: last_refreshed_at burada YAZILMAZ — Instagram'ın "token ≥ 24 sa yaşında" denetimi bu alana bakar.
     const r = await refreshAccount(env, http, log, a, pub, now);
     if (r.ok) n++;
-    else if (expires - now.getTime() < 3 * 86400_000) {
+    else if (!r.busy && expires - now.getTime() < 3 * 86400_000) {
       await notify(
         env,
         {

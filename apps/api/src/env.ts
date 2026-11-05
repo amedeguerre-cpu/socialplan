@@ -4,6 +4,8 @@ export interface PublishMessage {
   postId: string;
   traceId: string;
   leaseOwner: string;
+  /** Beklenen adım sırası (posts.msg_seq); eşleşmeyen kopya düşer. */
+  seq: number;
 }
 
 export interface Env {

@@ -5,7 +5,7 @@ import { api, BASE } from './helpers';
 import { createBrand, insertAccount, uploadVideo } from './fixtures';
 import { drain, queueEnv } from './queue';
 import { form, json, mockServer } from './mockServer';
-import { acquireLease } from '../src/lib/posts';
+import { claimLease } from '../src/lib/posts';
 import { decryptJson } from '../src/lib/crypto';
 import type { Env } from '../src/env';
 import '../src/publish/publishers';
@@ -40,8 +40,11 @@ async function setup() {
     .bind(new Date(Date.now() - 1000).toISOString(), post!.id)
     .run();
   const { env: qenv, sent } = queueEnv(LIVE);
-  await acquireLease(env.DB, post!.id, 'o', new Date());
-  sent.push({ body: { postId: post!.id, traceId: post!.trace_id, leaseOwner: 'o' }, delay: 0 });
+  const seq = (await claimLease(env.DB, post!.id, 'o', new Date())) as number;
+  sent.push({
+    body: { postId: post!.id, traceId: post!.trace_id, leaseOwner: 'o', seq },
+    delay: 0,
+  });
   return { post: post!, accountId, qenv, sent };
 }
 

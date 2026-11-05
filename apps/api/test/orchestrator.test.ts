@@ -6,7 +6,7 @@ import { createBrand, insertAccount, uploadVideo } from './fixtures';
 import { drain, queueEnv } from './queue';
 import { overridePublisherForTesting } from '../src/publish/registry';
 import { processMessage } from '../src/publish/orchestrator';
-import { acquireLease } from '../src/lib/posts';
+import { claimLease } from '../src/lib/posts';
 import { setTransportForTesting } from '../src/publish/http';
 import {
   AUTH_EXPIRED,
@@ -71,8 +71,9 @@ async function scheduledPost(): Promise<{ post: PostDTO; accountId: string }> {
 async function start(postId: string, traceId: string) {
   const { env: qenv, sent } = queueEnv({ DRY_RUN: 'false' });
   const owner = 'test-owner';
-  expect(await acquireLease(env.DB, postId, owner, new Date())).toBe(true);
-  sent.push({ body: { postId, traceId, leaseOwner: owner }, delay: 0 });
+  const seq = (await claimLease(env.DB, postId, owner, new Date())) as number;
+  expect(seq).toBeGreaterThan(0);
+  sent.push({ body: { postId, traceId, leaseOwner: owner, seq }, delay: 0 });
   return { qenv, sent };
 }
 
@@ -309,8 +310,11 @@ describe('orkestratör', () => {
     restore = overridePublisherForTesting('instagram', pub);
     const { post } = await scheduledPost();
     const { env: qenv, sent } = queueEnv({ DRY_RUN: 'false', ALLOWED_ACCOUNT_IDS: 'baska-hesap' });
-    await acquireLease(env.DB, post.id, 'o', new Date());
-    sent.push({ body: { postId: post.id, traceId: post.trace_id, leaseOwner: 'o' }, delay: 0 });
+    const seq = (await claimLease(env.DB, post.id, 'o', new Date())) as number;
+    sent.push({
+      body: { postId: post.id, traceId: post.trace_id, leaseOwner: 'o', seq },
+      delay: 0,
+    });
     await drain(qenv, sent, new Date());
     expect((await row(post.id))?.last_error_code).toBe('account_not_allowed');
     expect(pub.calls).toEqual([]);

@@ -16,7 +16,7 @@ import {
 import { isAccountAllowed, isDryRun, type Env, type PublishMessage } from '../env';
 import { first, nowIso, parseJson } from '../lib/db';
 import { createLogger, type Logger } from '../lib/log';
-import { acquireLease, eventStmt, leaseUntil, syncVideoStatusStmt } from '../lib/posts';
+import { continueLease, eventStmt, leaseUntil, syncVideoStatusStmt } from '../lib/posts';
 import { getQuota, useQuota } from '../lib/quota';
 import type { AccountRow, BrandRow, PostRow, VideoRow } from '../lib/rows';
 import { getSettings, isKillSwitchOn, type Settings } from '../lib/settings';
@@ -54,6 +54,15 @@ export async function enqueue(env: Env, msg: PublishMessage, delaySeconds = 0): 
 type Outcome = { status: PostStatus; result: StepResult };
 
 /** Hesap token'ını yenile; başarısızsa hesabı 'reconnect' yapar. */
+/** Yenileme kilidi süresi; başarısız denemeden sonra aynı hesabı bu kadar süre zorlamayız. */
+const REFRESH_LOCK_SEC = 60;
+const REFRESH_BACKOFF_SEC = 10 * 60;
+
+/**
+ * Hesap token'ını yenile. Eşzamanlı iki yenileme (cron + 401 sonrası) yarışmasın diye hesap başına kilit:
+ * kilidi alamayan `busy` döner. Kilit alındıktan sonra kayıt yeniden okunur; başkası az önce yenilediyse
+ * (secret_blob değişmiş) platforma gitmeden yeni token kullanılır. Kalıcı hata → hesap 'reconnect'.
+ */
 export async function refreshAccount(
   env: Env,
   http: HttpClient,
@@ -61,46 +70,80 @@ export async function refreshAccount(
   account: AccountRow,
   pub: Publisher,
   now: Date,
-): Promise<{ ok: boolean; message?: string; tokens?: AccountTokens }> {
-  let tokens: AccountTokens;
+): Promise<{ ok: boolean; busy?: boolean; message?: string; tokens?: AccountTokens }> {
+  const lock = await env.DB.prepare(
+    'UPDATE accounts SET refresh_lock_until = ? WHERE id = ? AND (refresh_lock_until IS NULL OR refresh_lock_until < ?) RETURNING id',
+  )
+    .bind(
+      new Date(now.getTime() + REFRESH_LOCK_SEC * 1000).toISOString(),
+      account.id,
+      now.toISOString(),
+    )
+    .first();
+  if (!lock)
+    return {
+      ok: false,
+      busy: true,
+      message: 'Token yenilemesi sürüyor veya yakın zamanda başarısız oldu',
+    };
+  let release: string | null = null;
   try {
-    tokens = await readTokens(env, account);
-  } catch (e) {
-    await markReconnect(env, account.id, 'Token kaydı okunamadı');
-    return { ok: false, message: e instanceof Error ? e.message : String(e) };
+    const fresh =
+      (await env.DB.prepare('SELECT * FROM accounts WHERE id = ?')
+        .bind(account.id)
+        .first<AccountRow>()) ?? account;
+    let tokens: AccountTokens;
+    try {
+      tokens = await readTokens(env, fresh);
+    } catch (e) {
+      await markReconnect(env, account.id, 'Token kaydı okunamadı');
+      return { ok: false, message: e instanceof Error ? e.message : String(e) };
+    }
+    if (fresh.secret_blob !== account.secret_blob) {
+      log.info('token.refreshed_elsewhere');
+      return { ok: true, tokens };
+    }
+    const r = await pub.refreshToken({ env, http, log, now, account: fresh, tokens });
+    if (r.ok) {
+      await saveTokens(env, account.id, r.update, now);
+      return { ok: true, tokens: r.update.tokens };
+    }
+    release = new Date(now.getTime() + REFRESH_BACKOFF_SEC * 1000).toISOString();
+    if (r.permanent) {
+      await markReconnect(env, account.id, r.message);
+      await notify(
+        env,
+        {
+          kind: 'token_lost',
+          dedupeKey: `token_lost:${account.id}:${now.toISOString().slice(0, 10)}`,
+          title: `${PLATFORM_LABELS[account.platform]} bağlantısı düştü`,
+          text: `@${account.username ?? account.external_id}: ${r.message}. Hesaplar ekranından yeniden bağlayın.`,
+        },
+        log,
+      );
+    }
+    return { ok: false, message: r.message };
+  } finally {
+    await env.DB.prepare('UPDATE accounts SET refresh_lock_until = ? WHERE id = ?')
+      .bind(release, account.id)
+      .run();
   }
-  const r = await pub.refreshToken({ env, http, log, now, account, tokens });
-  if (r.ok) {
-    await saveTokens(env, account.id, r.update, now);
-    return { ok: true, tokens: r.update.tokens };
-  }
-  if (r.permanent) {
-    await markReconnect(env, account.id, r.message);
-    await notify(
-      env,
-      {
-        kind: 'token_lost',
-        dedupeKey: `token_lost:${account.id}:${now.toISOString().slice(0, 10)}`,
-        title: `${PLATFORM_LABELS[account.platform]} bağlantısı düştü`,
-        text: `@${account.username ?? account.external_id}: ${r.message}. Hesaplar ekranından yeniden bağlayın.`,
-      },
-      log,
-    );
-  }
-  return { ok: false, message: r.message };
 }
 
 export async function processMessage(
   env: Env,
-  msg: PublishMessage,
+  msgIn: PublishMessage,
   now: Date = new Date(),
 ): Promise<Outcome | null> {
+  let msg = msgIn;
   const log = createLogger({ trace_id: msg.traceId, post_id: msg.postId });
   const db = env.DB;
-  if (!(await acquireLease(db, msg.postId, msg.leaseOwner, now))) {
-    log.info('lease.not_acquired');
+  const seq = await continueLease(db, msg.postId, msg.leaseOwner, msg.seq, now);
+  if (seq === null) {
+    log.info('lease.not_acquired', { seq: msg.seq });
     return null;
   }
+  msg = { ...msg, seq };
   const post = await first<PostRow>(db, 'SELECT * FROM posts WHERE id = ?', msg.postId);
   if (!post) return null;
   const plog = log.child({ platform: post.platform, attempt: post.attempt_count });
@@ -276,6 +319,14 @@ export async function processMessage(
           message: 'Token yenilendi ama platform yine reddetti; hesabı yeniden bağlayın',
         };
       }
+    } else if ('busy' in ref && ref.busy) {
+      result = {
+        kind: 'error',
+        class: 'transient',
+        code: 'token_refresh_busy',
+        message: ref.message ?? 'Token yenilemesi sürüyor',
+        retryAfterSec: 60,
+      };
     } else {
       result = {
         kind: 'error',
