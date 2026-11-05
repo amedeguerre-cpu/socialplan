@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import {
+  assertTransition,
   bulkPostsSchema,
   canTransition,
   fillSchema,
@@ -229,18 +230,30 @@ export const postRoutes = new Hono<AppEnv>()
       throw conflict('İşlenen veya yayınlanmış paylaşım düzenlenemez', 'not_editable');
     if (b.scheduled_at && new Date(b.scheduled_at).getTime() < Date.now() - 60_000)
       throw badRequest('Geçmiş bir zaman seçilemez', 'past_time');
+    // Hata / işlem gerekli post'a yeni zaman verilirse yeniden planlanır (insan geçişi).
+    const reschedule = !!b.scheduled_at && (p.status === 'needs_action' || p.status === 'failed');
+    if (reschedule) assertTransition(p.status, 'scheduled', 'human');
+    const to = reschedule ? 'scheduled' : p.status;
     const r = await c.env.DB.batch([
       c.env.DB.prepare(
-        'UPDATE posts SET caption_snapshot = ?, scheduled_at = ?, slot_id = CASE WHEN ? IS NULL THEN slot_id ELSE NULL END, updated_at = ? WHERE id = ? AND status = ?',
+        `UPDATE posts SET caption_snapshot = ?, scheduled_at = ?, slot_id = CASE WHEN ? IS NULL THEN slot_id ELSE NULL END, status = ?,
+           attempt_count = CASE WHEN ? THEN 0 ELSE attempt_count END, error_class = CASE WHEN ? THEN NULL ELSE error_class END,
+           last_error_code = CASE WHEN ? THEN NULL ELSE last_error_code END, last_error_message = CASE WHEN ? THEN NULL ELSE last_error_message END,
+           updated_at = ? WHERE id = ? AND status = ?`,
       ).bind(
         b.caption_snapshot ?? p.caption_snapshot,
         b.scheduled_at ? new Date(b.scheduled_at).toISOString() : p.scheduled_at,
         b.scheduled_at ?? null,
+        to,
+        reschedule ? 1 : 0,
+        reschedule ? 1 : 0,
+        reschedule ? 1 : 0,
+        reschedule ? 1 : 0,
         nowIso(),
         id,
         p.status,
       ),
-      eventStmt(c.env.DB, p, p.status, p.status, p.step, {
+      eventStmt(c.env.DB, p, p.status, to, p.step, {
         edit: Object.keys(b),
         actor: c.get('actor'),
         scheduled_at: b.scheduled_at ?? null,

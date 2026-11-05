@@ -35,8 +35,10 @@ function fmt(tz: string): Intl.DateTimeFormat {
 
 const WD: Record<string, number> = { Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6, Sun: 7 };
 
-export function zonedParts(date: Date | number, tz: string): ZonedParts {
-  const parts = fmt(tz).formatToParts(typeof date === 'number' ? new Date(date) : date);
+export type DateInput = Date | number | string;
+
+export function zonedParts(date: DateInput, tz: string): ZonedParts {
+  const parts = fmt(tz).formatToParts(date instanceof Date ? date : new Date(date));
   const get = (t: string): string => parts.find((p) => p.type === t)?.value ?? '0';
   return {
     year: Number(get('year')),
@@ -69,13 +71,13 @@ export function zonedToUtc(ymd: string, hm: string, tz: string): Date {
 const pad = (n: number): string => String(n).padStart(2, '0');
 
 /** UTC an → tz'de 'YYYY-MM-DD' */
-export function ymdInTz(date: Date | number, tz: string): string {
+export function ymdInTz(date: DateInput, tz: string): string {
   const p = zonedParts(date, tz);
   return `${p.year}-${pad(p.month)}-${pad(p.day)}`;
 }
 
 /** UTC an → tz'de 'HH:MM' */
-export function hmInTz(date: Date | number, tz: string): string {
+export function hmInTz(date: DateInput, tz: string): string {
   const p = zonedParts(date, tz);
   return `${pad(p.hour)}:${pad(p.minute)}`;
 }
@@ -94,13 +96,13 @@ export function weekdayOfYmd(ymd: string): number {
 }
 
 /** tz'deki haftanın pazartesisi ('YYYY-MM-DD'). */
-export function weekStartYmd(date: Date | number, tz: string): string {
+export function weekStartYmd(date: DateInput, tz: string): string {
   const ymd = ymdInTz(date, tz);
   return addDaysYmd(ymd, 1 - weekdayOfYmd(ymd));
 }
 
 /** YouTube kota günü: Pasifik saatine göre 'YYYY-MM-DD'. */
-export function pacificDay(date: Date | number): string {
+export function pacificDay(date: DateInput): string {
   return ymdInTz(date, 'America/Los_Angeles');
 }
 

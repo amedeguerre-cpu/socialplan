@@ -83,8 +83,8 @@ export function infoFromMovie(info: Movie): Mp4Info {
 }
 
 async function parseMp4(file: Blob, boxes: TopBox[]): Promise<Mp4Info | null> {
-  const moov = boxes.find((b) => b.type === 'moov');
-  const ftyp = boxes.find((b) => b.type === 'ftyp');
+  const moovIdx = boxes.findIndex((b) => b.type === 'moov');
+  const moov = boxes[moovIdx];
   if (!moov || moov.size > 64 * 1024 * 1024) return null;
   return new Promise((resolve) => {
     const mp4 = createFile();
@@ -97,9 +97,13 @@ async function parseMp4(file: Blob, boxes: TopBox[]): Promise<Mp4Info | null> {
       if (!done) resolve(null);
     };
     (async () => {
-      for (const b of [ftyp, moov].filter((x): x is TopBox => !!x)) {
-        const ab = await file.slice(b.offset, b.offset + b.size).arrayBuffer();
+      // Kutular sırayla beslenir; mdat'ın yalnız başlığı (moov sonda olsa bile tüm dosya okunmaz).
+      for (const b of boxes.slice(0, moovIdx + 1)) {
+        const len = b.type === 'mdat' ? 16 : b.size;
+        if (b.type !== 'mdat' && b.type !== 'moov' && len > 4 * 1024 * 1024) return resolve(null);
+        const ab = await file.slice(b.offset, b.offset + len).arrayBuffer();
         mp4.appendBuffer(MP4BoxBuffer.fromArrayBuffer(ab, b.offset));
+        if (done) return;
       }
       mp4.flush();
       if (!done) resolve(null);

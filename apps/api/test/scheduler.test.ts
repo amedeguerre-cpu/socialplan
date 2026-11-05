@@ -298,3 +298,41 @@ describe('panel işlemleri', () => {
     expect(((await bulk.json()) as { results: { ok: boolean }[] }).results[0]?.ok).toBe(false);
   });
 });
+
+describe('yeniden zamanlama (takvim sürükle-bırak)', () => {
+  it('planlanmış post taşınır; işlem gerekli post yeni zamanla yeniden planlanır', async () => {
+    const b = await createBrand();
+    await insertAccount(b.id, 'instagram');
+    const v = await uploadVideo(b.id);
+    const [p] = (await (
+      await api('/api/posts/manual', {
+        method: 'POST',
+        json: { video_id: v.id, platforms: ['instagram'], date: '2030-03-01', time: '10:15' },
+      })
+    ).json()) as PostDTO[];
+    const moved = await api(`/api/posts/${p!.id}`, {
+      method: 'PATCH',
+      json: { scheduled_at: '2030-03-02T09:15:00.000Z' },
+    });
+    expect(((await moved.json()) as PostDTO).scheduled_at).toBe('2030-03-02T09:15:00.000Z');
+    await env.DB.prepare(
+      "UPDATE posts SET status = 'needs_action', last_error_code = 'missed_slot', attempt_count = 2 WHERE id = ?",
+    )
+      .bind(p!.id)
+      .run();
+    const re = (await (
+      await api(`/api/posts/${p!.id}`, {
+        method: 'PATCH',
+        json: { scheduled_at: '2030-03-03T09:15:00.000Z' },
+      })
+    ).json()) as PostDTO;
+    expect(re.status).toBe('scheduled');
+    expect(re.last_error_code).toBeNull();
+    expect(re.attempt_count).toBe(0);
+    const past = await api(`/api/posts/${p!.id}`, {
+      method: 'PATCH',
+      json: { scheduled_at: '2020-03-03T09:15:00.000Z' },
+    });
+    expect(past.status).toBe(400);
+  });
+});

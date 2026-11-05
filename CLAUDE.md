@@ -80,6 +80,7 @@ packages/shared/     platform limitleri, durum makinesi, saat, doğrulama, zod �
 ## Tamamlanan fazlar
 
 - [x] Faz 0 — iskelet
+- [x] Faz 6 — Panel: haftalık takvim (saat satırları, hafta gezinme, arama, dnd-kit sürükle-bırak → PATCH scheduled_at; hata/işlem gerekli post taşınınca yeniden planlanır; boş slot kutusu → video ata; en iyi saatler pembe), detay paneli (platform sekmeleri, metin, Şimdi paylaş, İptal, Tekrar dene, Yayınladım, YouTube public yap, olay geçmişi), liste (filtre, sayfalama, toplu iptal/tekrar dene). Playwright ile uçtan uca denendi (yükleme → slot → doldur → takvim → sürükle-bırak)
 - [x] Faz 5 — YouTube: OAuth (PKCE, offline, consent select_account, channels.list mine=true), kota defteri (Pasifik günü, uploads 100), audit bayrağı (false: private + yalnız beyaz liste), resumable upload (8 MiB, 308/Range, kesintide boş PUT, 404 → yeni oturum), reconcile (boş PUT / yüklemeler listesi), madeForKids + containsSyntheticMedia, audit sonrası "public yap"
 - [x] Faz 4 — TikTok (inbox): OAuth (Login Kit, state), creator_info (scope yoksa atlanır), FILE_UPLOAD init + parçalı PUT (10 MiB, son parça kalanı emer, adım başına 4 parça, 403 → yeniden init), status/fetch, reconcile, webhook (imza + idempotent), "Yayınladım", hatırlatma, metin kopyala
 - [x] Faz 3 — Instagram: OAuth (Instagram Login, kısa → uzun token), limit → container (video_url/resumable) → yoklama → media_publish (commit) → permalink, reconcile (container PUBLISHED + caption/zaman eşleşmesi), token yenileme, kapak + share_to_feed + AI etiketi, Hesaplar sayfası
@@ -106,6 +107,13 @@ packages/shared/     platform limitleri, durum makinesi, saat, doğrulama, zod �
 - Redirect URI: `${APP_BASE_URL origin}/api/oauth/<platform>/callback`.
 - DRY_RUN açıkken token takası http istemcisinde engellenir → bağlanmak için DRY_RUN=false gerekir (README'deki güvenli sıra).
 - Platform modülleri `publish/<platform>.ts`: publisher + OAuth adaptörü; `publish/publishers.ts` kaydeder.
+
+## Panel notları
+
+- Marka seçimi `localStorage` (`socialplan.brand`); okunamazsa ilk marka.
+- `?post=<id>` Planlama'da detay panelini açar (bildirim bağlantıları bunu kullanır).
+- Yerel uçtan uca deneme: `ffmpeg` ile test videosu üret, `pnpm dev`, tarayıcıda http://localhost:8787 (ACCESS_DEV_BYPASS).
+- mp4box'a kutular sırayla beslenir; mdat'ın yalnız 16 bayt başlığı (moov sonda olsa da tüm dosya okunmaz).
 
 ## Yükleme notları
 
