@@ -9,6 +9,7 @@ import {
 } from '@socialplan/shared';
 import { all, first, parseJson } from '../lib/db';
 import { notify, sendChannels } from '../notify';
+import { decryptJson, encryptJson, parseKeySpec } from '../lib/crypto';
 import { createHttp } from '../publish/http';
 import { runDaily } from '../scheduler/daily';
 import { allowedAccountIds, isDryRun } from '../env';
@@ -96,6 +97,37 @@ export const systemRoutes = new Hono<AppEnv>()
     );
     await audit(c.env.DB, c.get('actor'), 'notify.test', 'settings', 'notify', r);
     return c.json(r);
+  })
+  /** Anahtar döndürme: tüm hesap token'larını güncel TOKEN_ENC_KEY ile yeniden şifreler (çözmede _PREV de denenir). */
+  .post('/system/rotate-tokens', async (c) => {
+    const { version } = parseKeySpec(c.env.TOKEN_ENC_KEY);
+    const rows = await all<{ id: string; secret_blob: string; secret_key_version: number }>(
+      c.env.DB,
+      'SELECT id, secret_blob, secret_key_version FROM accounts WHERE secret_blob IS NOT NULL',
+    );
+    let rotated = 0;
+    const failed: string[] = [];
+    for (const r of rows) {
+      if (r.secret_key_version === version && r.secret_blob.startsWith(`v${version}.`)) continue;
+      try {
+        const plain = await decryptJson<unknown>(c.env, r.secret_blob);
+        const enc = await encryptJson(c.env, plain);
+        await c.env.DB.prepare(
+          'UPDATE accounts SET secret_blob = ?, secret_key_version = ? WHERE id = ?',
+        )
+          .bind(enc.blob, enc.version, r.id)
+          .run();
+        rotated++;
+      } catch {
+        failed.push(r.id);
+      }
+    }
+    await audit(c.env.DB, c.get('actor'), 'system.rotate_tokens', null, null, {
+      rotated,
+      failed: failed.length,
+      version,
+    });
+    return c.json({ rotated, failed, version, total: rows.length });
   })
   .post('/system/run-daily', async (c) => {
     const r = await runDaily(c.env, new Date(), c.get('log'));

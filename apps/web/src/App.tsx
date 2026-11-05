@@ -2,6 +2,7 @@ import { NavLink, Navigate, Route, Routes } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
 import type { MeDTO } from '@socialplan/shared';
 import { api } from './lib/api';
+import { useSettings } from './lib/hooks';
 import { BrandProvider } from './lib/brand';
 import { BrandSwitcher } from './components/BrandSwitcher';
 import { VideosPage } from './pages/VideosPage';
@@ -45,6 +46,7 @@ export function App() {
           </nav>
           <span className="ml-auto truncate text-xs text-slate-500">{me.data?.email}</span>
         </header>
+        <SafetyBanner />
         <main className="min-h-0 flex-1 overflow-auto">
           <Routes>
             <Route path="/" element={<Navigate to="/planlama" replace />} />
@@ -59,4 +61,29 @@ export function App() {
       </div>
     </BrandProvider>
   );
+}
+
+function SafetyBanner() {
+  const s = useSettings();
+  if (!s.data) return null;
+  if (s.data.kill_switch) {
+    return (
+      <div
+        role="alert"
+        className="bg-red-600 px-4 py-1.5 text-center text-sm font-medium text-white"
+      >
+        Kill switch AÇIK — yeni paylaşım başlamaz, devam edenler durdurulur. Ayarlar'dan
+        kapatabilirsiniz.
+      </div>
+    );
+  }
+  if (s.data.dry_run) {
+    return (
+      <div className="bg-violet-50 px-4 py-1 text-center text-xs text-violet-800">
+        DRY_RUN açık — platformlara hiçbir istek gönderilmez; paylaşımlar "yayınlandı (dry-run)"
+        olur.
+      </div>
+    );
+  }
+  return null;
 }

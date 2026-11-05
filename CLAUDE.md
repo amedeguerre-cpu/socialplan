@@ -41,6 +41,8 @@ apps/api/            Tek Worker (Hono)
   src/scheduler/     cron, doldurma, reaper
   test/              vitest (@cloudflare/vitest-plugin), helpers.ts (JWT imzalama, api())
 apps/web/            React 19 + Vite 8 + Tailwind v4 + TanStack Query + React Router 7 (build → apps/api/public)
+scripts/             commit.sh (biçimlendir + check + commit + push), rotate-key.sh
+infra/               r2-cors.json
 packages/shared/     platform limitleri, durum makinesi, saat, doğrulama, zod şemaları, DTO'lar, caption
 ```
 
@@ -80,6 +82,7 @@ packages/shared/     platform limitleri, durum makinesi, saat, doğrulama, zod �
 ## Tamamlanan fazlar
 
 - [x] Faz 0 — iskelet
+- [x] Faz 8 — Sağlamlaştırma: kill switch kırmızı bandı + DRY_RUN bandı, bildirim testleri (dedupe, maske), anahtar döndürme (`scripts/rotate-key.sh` + `POST /api/system/rotate-tokens` + Ayarlar → Bakım), audit log ekranı, README (Cloudflare/Access/R2 CORS/D1/Queue/secret/deploy, Google, Meta, TikTok, Slack/Telegram, yedek), `infra/r2-cors.json`, `scripts/commit.sh`
 - [x] Faz 7 — Metrikler: günlük cron (`scheduler/metrics.ts`, 60 gün izleme; IG insights, YT videos.list statistics + birim kotası, TikTok video/query; TikTok için platform_state.post_id), `GET /api/analytics` (son metrik/post, günlük seri, gün×saat ısı haritası, en iyi saatler = (beğeni+yorum+paylaşım+kaydetme)/görüntülenme ortancası, kovada en az 3 post), takvimde en iyi 3 saat pembe, Analiz sayfası (Recharts, dataviz paleti, tek eksen), DRY_RUN'da `POST /api/analytics/demo`
 - [x] Faz 6 — Panel: haftalık takvim (saat satırları, hafta gezinme, arama, dnd-kit sürükle-bırak → PATCH scheduled_at; hata/işlem gerekli post taşınınca yeniden planlanır; boş slot kutusu → video ata; en iyi saatler pembe), detay paneli (platform sekmeleri, metin, Şimdi paylaş, İptal, Tekrar dene, Yayınladım, YouTube public yap, olay geçmişi), liste (filtre, sayfalama, toplu iptal/tekrar dene). Playwright ile uçtan uca denendi (yükleme → slot → doldur → takvim → sürükle-bırak)
 - [x] Faz 5 — YouTube: OAuth (PKCE, offline, consent select_account, channels.list mine=true), kota defteri (Pasifik günü, uploads 100), audit bayrağı (false: private + yalnız beyaz liste), resumable upload (8 MiB, 308/Range, kesintide boş PUT, 404 → yeni oturum), reconcile (boş PUT / yüklemeler listesi), madeForKids + containsSyntheticMedia, audit sonrası "public yap"
@@ -124,9 +127,14 @@ packages/shared/     platform limitleri, durum makinesi, saat, doğrulama, zod �
 - Video meta: mp4box (ftyp+moov kutuları beslenir), moov konumu en üst kutu taramasıyla, süre/en/boy video elementiyle.
 - Sunucu meta veriyi yeniden doğrular (`validateVideo`), boyutu R2 nesnesinden alır.
 
-## Bilinen sorunlar
+## Bilinen sorunlar / sapmalar
 
-- (yok)
+- **Hono RPC tipleri panelde kullanılmadı**: Worker tiplerini (workers-types) DOM'lu web derlemesine taşımamak için panel `packages/shared/src/dto.ts` paylaşılan DTO tipleri + `apps/web/src/lib/api.ts` ince istemciyle çalışıyor. API tipi `ApiType` olarak dışa aktarılıyor; istenirse `hc<ApiType>` sonradan eklenebilir.
+- Takvimde sürüklerken dnd-kit otomatik kaydırması bırakılan hücreyi bir saat kaydırabilir (bırakılan hücre esas alınır).
+- TikTok inbox'a caption gönderilmiyor (TODO(doğrula)); kullanıcı panelden "Metni kopyala" ile yapıştırır.
+- Instagram resumable yükleme kesintide baştan gönderilir.
+- WebM dosyalarda codec/fps okunmaz (mp4box yalnız ISO BMFF) → doğrulamada uyarı, engel değil.
+- Vitest depolaması test dosyası içinde testler arasında paylaşımlı; global ayarı değiştiren testler (kill switch, youtube_audited) `finally` ile geri alır.
 
 ## TODO(doğrula)
 

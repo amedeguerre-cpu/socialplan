@@ -227,6 +227,43 @@ function GlobalSettings({ s }: { s: SettingsDTO }) {
           </label>
         </div>
       </Card>
+      <Card
+        title="Bakım"
+        desc="Anahtar döndürme sonrası token'ları yeni TOKEN_ENC_KEY ile yeniden şifreleyin; günlük işleri elle çalıştırın."
+      >
+        <div className="flex flex-wrap gap-2">
+          <Button
+            onClick={() =>
+              void api
+                .post<{ rotated: number; total: number; failed: string[] }>('/system/rotate-tokens')
+                .then((r) =>
+                  setMsg(
+                    `${r.rotated}/${r.total} token yeniden şifrelendi${r.failed.length ? `, ${r.failed.length} başarısız` : ''}`,
+                  ),
+                )
+                .catch((e: unknown) => setMsg(e instanceof Error ? e.message : 'Başarısız'))
+            }
+          >
+            Token'ları yeniden şifrele
+          </Button>
+          <Button
+            onClick={() =>
+              void api
+                .post<Record<string, number>>('/system/run-daily')
+                .then((r) =>
+                  setMsg(
+                    `Günlük işler: ${Object.entries(r)
+                      .map(([k, v]) => `${k}=${v}`)
+                      .join(', ')}`,
+                  ),
+                )
+                .catch((e: unknown) => setMsg(e instanceof Error ? e.message : 'Başarısız'))
+            }
+          >
+            Günlük işleri şimdi çalıştır
+          </Button>
+        </div>
+      </Card>
       <Card title="Zamanlama">
         <form
           className="grid gap-3 sm:grid-cols-3"
