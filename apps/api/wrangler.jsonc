@@ -1,0 +1,53 @@
+// SocialPlan — tek Worker: Hono API + statik panel + cron + Queue tüketicisi.
+// Kimlik/ID değerleri yer tutucudur; README'deki adımlarla kendi değerlerinizi yazın.
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "socialplan",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-10-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": { "enabled": true },
+  // Queue tüketicisi parça yüklerken uzun CPU kullanabilir (varsayılan 30 sn).
+  "limits": { "cpu_ms": 300000 },
+  "assets": {
+    "directory": "./public",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*", "/webhooks/*"],
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "socialplan",
+      "database_id": "00000000-0000-0000-0000-000000000000",
+      "migrations_dir": "migrations",
+    },
+  ],
+  "r2_buckets": [{ "binding": "MEDIA", "bucket_name": "socialplan-media" }],
+  "queues": {
+    "producers": [{ "binding": "PUBLISH_QUEUE", "queue": "socialplan-publish" }],
+    "consumers": [
+      {
+        "queue": "socialplan-publish",
+        "max_batch_size": 5,
+        "max_batch_timeout": 5,
+        "max_retries": 5,
+        "dead_letter_queue": "socialplan-publish-dlq",
+      },
+    ],
+  },
+  "triggers": { "crons": ["* * * * *"] },
+  "vars": {
+    "ACCESS_TEAM_DOMAIN": "ornek-takim.cloudflareaccess.com",
+    "ACCESS_AUD": "",
+    "APP_BASE_URL": "http://localhost:8787",
+    "DRY_RUN": "true",
+    "ALLOWED_ACCOUNT_IDS": "",
+    "R2_ACCOUNT_ID": "",
+    "R2_BUCKET": "socialplan-media",
+    "GOOGLE_CLIENT_ID": "",
+    "IG_APP_ID": "",
+    "TIKTOK_CLIENT_KEY": "",
+    "TELEGRAM_CHAT_ID": "",
+  },
+}

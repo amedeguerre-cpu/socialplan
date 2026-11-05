@@ -1,0 +1,9 @@
+node_modules
+dist
+.wrangler
+.dev.vars
+*.log
+coverage
+.DS_Store
+apps/api/public/*
+!apps/api/public/.gitkeep

@@ -1,0 +1,14 @@
+# Yerel geliştirme: bu dosyayı .dev.vars olarak kopyalayın. GERÇEK DEĞER COMMIT'LEMEYİN.
+# Yalnız yerelde: Access JWT doğrulamasını atlar (yalnız localhost isteklerinde geçerli).
+ACCESS_DEV_BYPASS=gelistirici@localhost
+# 32 bayt base64 (openssl rand -base64 32)
+TOKEN_ENC_KEY=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
+# TOKEN_ENC_KEY_PREV=
+# R2 S3 API anahtarı (yerelde boş bırakılırsa yükleme Worker üzerinden yerel R2'ye gider)
+R2_ACCESS_KEY_ID=
+R2_SECRET_ACCESS_KEY=
+GOOGLE_CLIENT_SECRET=
+IG_APP_SECRET=
+TIKTOK_CLIENT_SECRET=
+SLACK_WEBHOOK_URL=
+TELEGRAM_BOT_TOKEN=

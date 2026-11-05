@@ -1,0 +1,7 @@
+node_modules
+dist
+.wrangler
+pnpm-lock.yaml
+apps/api/public
+apps/api/worker-configuration.d.ts
+coverage
