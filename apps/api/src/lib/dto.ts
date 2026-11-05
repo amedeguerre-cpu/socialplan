@@ -27,6 +27,7 @@ export function toBrandDTO(
     paused: bool(r.paused),
     autofill_enabled: bool(r.autofill_enabled),
     autofill_days: r.autofill_days,
+    caption_signature: r.caption_signature ?? '',
     created_at: r.created_at,
     ...extra,
   };

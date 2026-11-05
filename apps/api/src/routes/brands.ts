@@ -117,7 +117,7 @@ export const brandRoutes = new Hono<AppEnv>()
     }
     await run(
       c.env.DB,
-      `UPDATE brands SET name = ?, color = ?, timezone = ?, paused = ?, autofill_enabled = ?, autofill_days = ?, avatar_key = ?, updated_at = ? WHERE id = ?`,
+      `UPDATE brands SET name = ?, color = ?, timezone = ?, paused = ?, autofill_enabled = ?, autofill_days = ?, avatar_key = ?, caption_signature = ?, updated_at = ? WHERE id = ?`,
       body.name ?? cur.name,
       body.color ?? cur.color,
       body.timezone ?? cur.timezone,
@@ -125,6 +125,7 @@ export const brandRoutes = new Hono<AppEnv>()
       body.autofill_enabled === undefined ? cur.autofill_enabled : b2i(body.autofill_enabled),
       body.autofill_days ?? cur.autofill_days,
       body.avatar_key === undefined ? cur.avatar_key : body.avatar_key,
+      body.caption_signature ?? cur.caption_signature ?? '',
       nowIso(),
       id,
     );

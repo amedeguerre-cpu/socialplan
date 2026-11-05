@@ -13,6 +13,7 @@ export interface BrandDTO {
   paused: boolean;
   autofill_enabled: boolean;
   autofill_days: number;
+  caption_signature: string;
   queue_count: number;
   queue_days_left: number | null;
   platforms: Platform[];
@@ -123,6 +124,7 @@ export interface SettingsDTO {
   notify: { slack: boolean; telegram: boolean };
   notify_available: { slack: boolean; telegram: boolean };
   autofill_default_days: number;
+  weekly_report: boolean;
   dry_run: boolean;
   allowed_account_ids: string[];
 }
@@ -196,4 +198,64 @@ export interface Paged<T> {
 export interface MeDTO {
   email: string;
   dev_bypass: boolean;
+}
+
+export interface TemplateDTO {
+  id: string;
+  brand_id: string;
+  kind: 'caption' | 'hashtags';
+  name: string;
+  platform: Platform | null;
+  body: string;
+  updated_at: string;
+}
+
+export interface WeeklyReportDTO {
+  brand_id: string;
+  brand_name: string;
+  period: { from: string; to: string };
+  posts: number;
+  views: number;
+  engagement: number;
+  views_change: number | null;
+  engagement_change: number | null;
+  top: { title: string | null; platform: Platform; views: number; url: string | null }[];
+  next_week: { scheduled: number; slots: number; fill_rate: number | null };
+  queue: { count: number; days_left: number | null };
+  needs_action: number;
+  failed: number;
+  text: string;
+}
+
+export type HealthLevel = 'ok' | 'warn' | 'error';
+
+export interface HealthCheck {
+  key: string;
+  label: string;
+  level: HealthLevel;
+  detail: string;
+}
+
+export interface HealthDTO {
+  level: HealthLevel;
+  now: string;
+  checks: HealthCheck[];
+  counts: {
+    processing: number;
+    retrying: number;
+    overdue: number;
+    needs_action: number;
+    failed_24h: number;
+    dlq_24h: number;
+    inbox_waiting: number;
+  };
+  last_cron_at: string | null;
+  last_daily_at: string | null;
+  tokens: {
+    account_id: string;
+    platform: Platform;
+    username: string | null;
+    status: string;
+    token_expires_at: string | null;
+  }[];
 }

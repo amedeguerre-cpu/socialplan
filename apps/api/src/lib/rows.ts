@@ -17,6 +17,7 @@ export interface BrandRow {
   paused: number;
   autofill_enabled: number;
   autofill_days: number;
+  caption_signature: string;
   created_at: string;
   updated_at: string;
 }

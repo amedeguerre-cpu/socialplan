@@ -7,6 +7,8 @@ import { PlatformIcon } from '../components/PlatformIcon';
 import { EmptyState, ErrorState, Skeleton } from '../components/States';
 import { Badge, Button, Field, inputCls, Modal } from '../components/ui';
 import { AuditLog } from '../components/AuditLog';
+import { TemplateManager } from '../components/Templates';
+import type { WeeklyReportDTO } from '@socialplan/shared';
 
 export const WEEKDAYS = ['Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma', 'Cumartesi', 'Pazar'];
 
@@ -22,6 +24,7 @@ export function SettingsPage() {
       ) : (
         s.data && <GlobalSettings s={s.data} />
       )}
+      <TemplatesCard />
       <AuditLog />
     </div>
   );
@@ -351,6 +354,10 @@ function GlobalSettings({ s }: { s: SettingsDTO }) {
           <Button onClick={() => void test()} disabled={!s.notify.slack && !s.notify.telegram}>
             Deneme mesajı gönder
           </Button>
+          <WeeklyReport
+            enabled={s.weekly_report}
+            onToggle={(v) => void save({ weekly_report: v })}
+          />
         </div>
       </Card>
       {msg && <p className="text-sm text-slate-600">{msg}</p>}
@@ -374,5 +381,65 @@ function GlobalSettings({ s }: { s: SettingsDTO }) {
         </div>
       </Modal>
     </>
+  );
+}
+
+function TemplatesCard() {
+  const { brand, brandId } = useBrand();
+  if (!brandId) return null;
+  return (
+    <Card
+      title={`Metin şablonları ve hashtag setleri — ${brand?.name ?? ''}`}
+      desc="Video detayında platform sekmesinden uygulanır. Marka imzası: Marka ayarları."
+    >
+      <TemplateManager brandId={brandId} />
+    </Card>
+  );
+}
+
+function WeeklyReport({ enabled, onToggle }: { enabled: boolean; onToggle: (v: boolean) => void }) {
+  const { brandId } = useBrand();
+  const [preview, setPreview] = useState<string | null>(null);
+  const [msg, setMsg] = useState<string | null>(null);
+  return (
+    <div className="mt-3 space-y-2 border-t border-slate-100 pt-3">
+      <label className="flex items-center gap-2">
+        <input type="checkbox" checked={enabled} onChange={(e) => onToggle(e.target.checked)} />{' '}
+        Haftalık özet (her pazartesi 09:05, marka başına)
+      </label>
+      <div className="flex flex-wrap gap-2">
+        <Button
+          disabled={!brandId}
+          onClick={() =>
+            void api
+              .get<WeeklyReportDTO>(`/reports/weekly?brand_id=${brandId}`)
+              .then((r) => setPreview(r.text))
+          }
+        >
+          Bu markanın özetini önizle
+        </Button>
+        <Button
+          disabled={!brandId}
+          onClick={() =>
+            void api
+              .post<{ sent: number }>('/reports/weekly/send', { brand_id: brandId })
+              .then((r) =>
+                setMsg(
+                  r.sent ? 'Özet gönderildi' : 'Gönderilmedi (bildirim kanalı kapalı olabilir)',
+                ),
+              )
+              .catch((e: unknown) => setMsg(e instanceof Error ? e.message : 'Gönderilemedi'))
+          }
+        >
+          Şimdi gönder
+        </Button>
+        {msg && <span className="text-slate-600">{msg}</span>}
+      </div>
+      {preview && (
+        <pre className="whitespace-pre-wrap rounded-lg bg-slate-50 p-3 text-xs text-slate-700">
+          {preview}
+        </pre>
+      )}
+    </div>
   );
 }

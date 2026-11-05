@@ -160,6 +160,7 @@ function BrandModal({
           paused: fd.get('paused') === 'on',
           autofill_enabled: fd.get('autofill_enabled') === 'on',
           autofill_days: Number(fd.get('autofill_days') ?? 7),
+          caption_signature: String(fd.get('caption_signature') ?? ''),
         });
       }
       await inv(qk.brands);
@@ -195,6 +196,17 @@ function BrandModal({
         </div>
         {brand && (
           <>
+            <Field
+              label="Marka imzası"
+              hint="Her paylaşım metninin sonuna bir kez eklenir (ör. 🛒 site.com)"
+            >
+              <input
+                name="caption_signature"
+                defaultValue={brand.caption_signature}
+                maxLength={300}
+                className={inputCls}
+              />
+            </Field>
             <label className="flex items-center gap-2 text-sm">
               <input type="checkbox" name="paused" defaultChecked={brand.paused} /> Markayı duraklat
               (yeni paylaşım başlamaz)

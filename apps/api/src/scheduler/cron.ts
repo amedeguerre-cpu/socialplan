@@ -11,6 +11,8 @@ import type { PostRow } from '../lib/rows';
 import { getSettings } from '../lib/settings';
 import { notify } from '../notify';
 import { runDaily } from './daily';
+import { sendWeeklyReports, WEEKLY_AT } from './weekly';
+import { setRawSetting } from '../lib/settings';
 import { refreshDueTokens } from './tokens';
 
 const DISPATCH_LIMIT = 100;
@@ -156,5 +158,19 @@ export async function handleScheduled(env: Env, now: Date, _cron: string): Promi
   await tiktokReminders(env, now, log);
   await refreshDueTokens(env, now, log);
   const p = zonedParts(now, DAILY_AT.tz);
-  if (p.hour === DAILY_AT.hour && p.minute === DAILY_AT.minute) await runDaily(env, now, log);
+  if (p.hour === DAILY_AT.hour && p.minute === DAILY_AT.minute) {
+    await runDaily(env, now, log);
+    await setRawSetting(env.DB, 'last_daily_at', now.toISOString(), 'cron');
+  }
+  const w = zonedParts(now, WEEKLY_AT.tz);
+  if (
+    settings.weekly_report &&
+    w.weekday === WEEKLY_AT.weekday &&
+    w.hour === WEEKLY_AT.hour &&
+    w.minute === WEEKLY_AT.minute
+  ) {
+    await sendWeeklyReports(env, now, log);
+  }
+  // Sağlık ekranı için son çalışma zamanı.
+  await setRawSetting(env.DB, 'last_cron_at', now.toISOString(), 'cron');
 }

@@ -31,7 +31,7 @@ Yerel: `apps/api/.dev.vars.example` → `.dev.vars` (ACCESS_DEV_BYPASS yalnız l
 ```
 apps/api/            Tek Worker (Hono)
   wrangler.jsonc     D1 (DB), R2 (MEDIA), Queue (PUBLISH_QUEUE + DLQ), cron * * * * *, assets (SPA, run_worker_first /api/*, /webhooks/*)
-  migrations/        D1 SQL (0001_init.sql)
+  migrations/        D1 SQL (0001 şema, 0002 msg_seq + yenileme kilidi, 0003 şablonlar + imza)
   src/index.ts       fetch / scheduled / queue
   src/app.ts         Hono: güvenli yapılandırma denetimi → /api (Access + Origin) → ASSETS
   src/env.ts         Env tipi, DRY_RUN, ALLOWED_ACCOUNT_IDS, assertSafeConfig
@@ -82,6 +82,7 @@ packages/shared/     platform limitleri, durum makinesi, saat, doğrulama, zod �
 ## Tamamlanan fazlar
 
 - [x] Faz 0 — iskelet
+- [x] Faz 10 — Ek özellikler: metin şablonları, hashtag setleri, marka imzası, haftalık özet, sağlık ekranı, DLQ tüketicisi (aşağıda)
 - [x] Faz 9 — Hata avı: temiz kurulum (`--frozen-lockfile`), sıfır D1'e migration, wrangler dev duman testi; 4 hata düzeltildi (aşağıda), regresyon testleri (`apps/api/test/bughunt.test.ts`, `packages/shared/test/boundaries.test.ts`, `packages/shared/test/repo-audit.test.ts`)
 - [x] Faz 8 — Sağlamlaştırma: kill switch kırmızı bandı + DRY_RUN bandı, bildirim testleri (dedupe, maske), anahtar döndürme (`scripts/rotate-key.sh` + `POST /api/system/rotate-tokens` + Ayarlar → Bakım), audit log ekranı, README (Cloudflare/Access/R2 CORS/D1/Queue/secret/deploy, Google, Meta, TikTok, Slack/Telegram, yedek), `infra/r2-cors.json`, `scripts/commit.sh`
 - [x] Faz 7 — Metrikler: günlük cron (`scheduler/metrics.ts`, 60 gün izleme; IG insights, YT videos.list statistics + birim kotası, TikTok video/query; TikTok için platform_state.post_id), `GET /api/analytics` (son metrik/post, günlük seri, gün×saat ısı haritası, en iyi saatler = (beğeni+yorum+paylaşım+kaydetme)/görüntülenme ortancası, kovada en az 3 post), takvimde en iyi 3 saat pembe, Analiz sayfası (Recharts, dataviz paleti, tek eksen), DRY_RUN'da `POST /api/analytics/demo`
@@ -148,6 +149,15 @@ packages/shared/     platform limitleri, durum makinesi, saat, doğrulama, zod �
 
 - Olası maddeler: YouTube 308'de Range yoksa offset 0; Instagram `media_publish` geçici/belirsiz yanıtta reconcile (yalnız kesin 4xx red commit'i kaldırır); yenileme kilidi 300 sn, yenilenen token kaydı 3 kez denenir, başarısızsa bildirim; `ALLOWED_ACCOUNT_IDS` yalnız external_id; yeniden bağlamada platform hesabı değişirse planlı post'lar `needs_action: account_changed`; `rotate-key.sh` yeni sürüm > mevcut denetimi.
 - Testler: `apps/api/test/review.test.ts`, `packages/shared/test/boundaries.test.ts` (DST). saveTokens başarısızlık yolu için test yok (D1 yazım hatası taklidi zor) — kod okumasıyla doğrulandı.
+
+## Ek özellikler (Faz 10)
+
+- **Metin şablonları + hashtag setleri** (migration 0003 `caption_templates`; `/api/templates`): Ayarlar'da yönetilir, video detayında platform sekmesinden "Şablon uygula" / "Hashtag seti ekle". Değişkenler `{baslik} {aciklama} {marka} {tarih} {hashtagler} {platform}` (`shared/captions.ts renderTemplate`).
+- **Marka imzası** (`brands.caption_signature`): `buildCaption(..., { signature })` metnin sonuna bir kez ekler; doldurma, elle planlama ve orkestratör yedeği kullanır.
+- **Haftalık özet** (`lib/weekly.ts`, `scheduler/weekly.ts`): Pazartesi 09:05 İstanbul, marka başına; son 7 gün vs önceki 7 gün, en iyi 3, gelecek 7 gün doluluğu, kuyruk, işlem gerekli/hata. Ayar `weekly_report`; `GET /api/reports/weekly?brand_id` önizleme, `POST /api/reports/weekly/send`.
+- **Sağlık ekranı** (`/saglik`, `GET /api/health`, başlıkta durum noktası): son cron (`settings.last_cron_at`, her dakika yazılır), günlük işler (`last_daily_at`), geciken/takılan/işlem gerekli/hata/DLQ/TikTok taslağı sayıları, token durumu.
+- **Ölü mektup tüketicisi** (`publish/deadletter.ts`, wrangler'da ikinci consumer): post hâlâ aynı sahipte işleniyorsa `needs_action: dlq` (commit_started_at korunur) + bildirim + `post_events.step='dlq'`.
+- Testler: `apps/api/test/features.test.ts`, `packages/shared/test/templates.test.ts`.
 
 ## Bilinen sorunlar / sapmalar
 

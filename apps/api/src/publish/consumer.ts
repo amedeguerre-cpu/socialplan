@@ -1,10 +1,25 @@
 import type { Env, PublishMessage } from '../env';
 import { createLogger } from '../lib/log';
+import { handleDeadLetter } from './deadletter';
 import { processMessage } from './orchestrator';
 import './publishers';
 
 export async function handleQueue(batch: MessageBatch<PublishMessage>, env: Env): Promise<void> {
   const log = createLogger({ queue: batch.queue });
+  if (batch.queue.endsWith('-dlq')) {
+    for (const msg of batch.messages) {
+      try {
+        await handleDeadLetter(env, msg.body, msg.attempts, log);
+      } catch (e) {
+        log.error('dlq.failed', {
+          post_id: msg.body.postId,
+          err: e instanceof Error ? e.message : String(e),
+        });
+      }
+      msg.ack();
+    }
+    return;
+  }
   for (const msg of batch.messages) {
     try {
       await processMessage(env, msg.body);

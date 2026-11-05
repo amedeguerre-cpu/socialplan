@@ -7,6 +7,7 @@ export interface Settings {
   retention_days: number;
   notify: { slack: boolean; telegram: boolean };
   autofill_default_days: number;
+  weekly_report: boolean;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -16,6 +17,7 @@ export const DEFAULT_SETTINGS: Settings = {
   retention_days: 30,
   notify: { slack: false, telegram: false },
   autofill_default_days: 7,
+  weekly_report: true,
 };
 
 export async function getSettings(db: D1Database): Promise<Settings> {

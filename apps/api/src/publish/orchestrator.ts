@@ -280,6 +280,7 @@ export async function processMessage(
         caption_overrides: parseJson(video.caption_overrides, {}),
       },
       post.platform,
+      { signature: brand.caption_signature },
     );
   const ctx: PublishContext = {
     env,

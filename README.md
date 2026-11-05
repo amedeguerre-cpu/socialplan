@@ -221,7 +221,13 @@ npx wrangler d1 export socialplan --remote --output=yedek.sql     # ek dışa ak
 
 Videolar R2'de `retention_days` (varsayılan 30) gün sonra silinir (tüm platformlarda yayınlandıktan sonra); kapaklar kalır.
 
-**Ölü mektup kuyruğu:** `socialplan-publish-dlq`'ya düşen mesajlar yalnız beklenmeyen hatalarda oluşur; ilgili post'un lease'i dolunca reaper (cron) onu yeniden kuyruğa alır. `npx wrangler queues info socialplan-publish-dlq` ile izleyin.
+**Sağlık ekranı:** başlıktaki renkli nokta veya `/saglik` — cron'un son çalışması, geciken/takılan paylaşımlar, işlem gerekli, son 24 sa hatalar, ölü mektuplar ve token durumları tek sayfada.
+
+**Haftalık özet:** her pazartesi 09:05 (İstanbul) her marka için Slack/Telegram'a: son 7 günün görüntülenme/etkileşimi (önceki haftaya göre %), en iyi 3 video, gelecek haftanın slot doluluğu, kuyruk durumu. Ayarlar → Bildirimler'den kapatılabilir, önizlenebilir veya hemen gönderilebilir.
+
+**Metin şablonları:** Ayarlar → Metin şablonları ve hashtag setleri; video detayında platform sekmesinden uygulanır. Marka ayarlarındaki **imza** her paylaşım metninin sonuna eklenir.
+
+**Ölü mektup kuyruğu:** `socialplan-publish-dlq`'ya düşen mesajlar yalnız beklenmeyen hatalarda oluşur; DLQ tüketicisi ilgili paylaşımı "İşlem gerekli" yapar ve bildirim gönderir (sağlık ekranında kırmızı görünür). `npx wrangler queues info socialplan-publish-dlq` ile izleyin.
 
 **Günlük işler** İstanbul saatiyle 04:10'da çalışır (otomatik doldurma, kuyruk uyarısı, metrik çekme, saklama temizliği); Ayarlar → Bakım'dan elle de çalıştırılabilir.
 

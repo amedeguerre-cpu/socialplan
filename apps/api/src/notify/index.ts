@@ -14,6 +14,8 @@ export type NotifyKind =
   | 'kill_switch'
   | 'tiktok_inbox'
   | 'tiktok_inbox_reminder'
+  | 'weekly_report'
+  | 'dlq'
   | 'test';
 
 export interface Notice {
@@ -33,6 +35,8 @@ const EMOJI: Record<NotifyKind, string> = {
   kill_switch: '🛑',
   tiktok_inbox: '📲',
   tiktok_inbox_reminder: '⏰',
+  weekly_report: '📊',
+  dlq: '🧯',
   test: '✅',
 };
 

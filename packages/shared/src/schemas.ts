@@ -33,6 +33,7 @@ export const brandUpdateSchema = z.object({
   autofill_enabled: z.boolean().optional(),
   autofill_days: z.number().int().min(1).max(60).optional(),
   avatar_key: z.string().max(300).nullable().optional(),
+  caption_signature: z.string().max(300).optional(),
 });
 
 export const captionOverridesSchema = z
@@ -171,6 +172,20 @@ export const settingsUpdateSchema = z.object({
   retention_days: z.number().int().min(1).max(365).optional(),
   notify: notifyConfigSchema.optional(),
   autofill_default_days: z.number().int().min(1).max(60).optional(),
+  weekly_report: z.boolean().optional(),
+});
+
+export const templateCreateSchema = z.object({
+  brand_id: z.string().min(1),
+  kind: z.enum(['caption', 'hashtags']),
+  name: z.string().trim().min(1).max(60),
+  platform: platformSchema.nullable().optional(),
+  body: z.string().trim().min(1).max(2200),
+});
+export const templateUpdateSchema = z.object({
+  name: z.string().trim().min(1).max(60).optional(),
+  platform: platformSchema.nullable().optional(),
+  body: z.string().trim().min(1).max(2200).optional(),
 });
 
 export type BrandCreate = z.infer<typeof brandCreateSchema>;

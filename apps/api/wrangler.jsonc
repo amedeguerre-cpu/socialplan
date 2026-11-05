@@ -34,6 +34,8 @@
         "max_retries": 5,
         "dead_letter_queue": "socialplan-publish-dlq",
       },
+      // Ölü mektuplar: post'u "işlem gerekli" yapar ve bildirir.
+      { "queue": "socialplan-publish-dlq", "max_batch_size": 10, "max_retries": 1 },
     ],
   },
   "triggers": { "crons": ["* * * * *"] },

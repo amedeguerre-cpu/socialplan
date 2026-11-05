@@ -4,6 +4,9 @@ import {
   PLATFORM_LABELS,
   buildCaption,
   formatTr,
+  normalizeHashtag,
+  parseHashtagSet,
+  renderTemplate,
   POST_STATUS_LABELS,
   type Platform,
   type VideoDTO,
@@ -17,6 +20,7 @@ import { PlatformIcon } from './PlatformIcon';
 import { ValidationBadges } from './ValidationBadges';
 import { Badge, Button, Drawer, Field, formatBytes, formatDuration, inputCls, Tabs } from './ui';
 import { StatusDot } from './StatusDot';
+import { useTemplates } from './Templates';
 
 export function VideoDetail({ video, onClose }: { video: VideoDTO | null; onClose: () => void }) {
   return (
@@ -81,9 +85,37 @@ function VideoDetailBody({ video, onClose }: { video: VideoDTO; onClose: () => v
     }
   };
 
+  const { brand } = useBrand();
+  const templates = useTemplates(video.brand_id);
+  const captionTpls = (templates.data ?? []).filter(
+    (t) => t.kind === 'caption' && (!t.platform || t.platform === tab),
+  );
+  const hashtagSets = (templates.data ?? []).filter(
+    (t) => t.kind === 'hashtags' && (!t.platform || t.platform === tab),
+  );
+  const applyTemplate = (id: string) => {
+    const t = captionTpls.find((x) => x.id === id);
+    if (!t) return;
+    const text = renderTemplate(t.body, {
+      baslik: title,
+      aciklama: description,
+      marka: brand?.name ?? '',
+      tarih: new Intl.DateTimeFormat('tr-TR').format(new Date()),
+      hashtagler: tags.map(normalizeHashtag).join(' '),
+      platform: PLATFORM_LABELS[tab],
+    });
+    setOverrides((o) => ({ ...o, [tab]: text }));
+  };
+  const addHashtagSet = (id: string) => {
+    const t = hashtagSets.find((x) => x.id === id);
+    if (!t) return;
+    const merged = [...new Set([...tags, ...parseHashtagSet(t.body)])];
+    setHashtags(merged.map((x) => `#${x}`).join(' '));
+  };
   const preview = buildCaption(
     { title, description, hashtags: tags, caption_overrides: overrides },
     tab,
+    { signature: brand?.caption_signature },
   );
 
   return (
@@ -153,6 +185,40 @@ function VideoDetailBody({ video, onClose }: { video: VideoDTO; onClose: () => v
             placeholder="Bu platform için özel metin (boşsa açıklama + hashtag'ler)"
             className={`${inputCls} mt-2`}
           />
+          {(captionTpls.length > 0 || hashtagSets.length > 0) && (
+            <div className="mt-2 flex flex-wrap gap-2">
+              {captionTpls.length > 0 && (
+                <select
+                  value=""
+                  onChange={(e) => applyTemplate(e.target.value)}
+                  className={`${inputCls} w-56!`}
+                  aria-label="Şablon uygula"
+                >
+                  <option value="">Şablon uygula…</option>
+                  {captionTpls.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.name}
+                    </option>
+                  ))}
+                </select>
+              )}
+              {hashtagSets.length > 0 && (
+                <select
+                  value=""
+                  onChange={(e) => addHashtagSet(e.target.value)}
+                  className={`${inputCls} w-56!`}
+                  aria-label="Hashtag seti ekle"
+                >
+                  <option value="">Hashtag seti ekle…</option>
+                  {hashtagSets.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.name}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
+          )}
           <p className="mt-1 whitespace-pre-wrap rounded bg-slate-50 p-2 text-xs text-slate-600">
             {preview || '—'}
           </p>

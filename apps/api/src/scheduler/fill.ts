@@ -50,7 +50,7 @@ export async function hashUsedOnAccount(
   return !!r;
 }
 
-export function captionFor(v: VideoRow, platform: Platform): string {
+export function captionFor(v: VideoRow, platform: Platform, signature = ''): string {
   return buildCaption(
     {
       title: v.title,
@@ -59,6 +59,7 @@ export function captionFor(v: VideoRow, platform: Platform): string {
       caption_overrides: parseJson(v.caption_overrides, {}),
     },
     platform,
+    { signature },
   );
 }
 
@@ -166,7 +167,7 @@ export async function fillQueue(
           platform: t.p,
           slot_id: o.slot.id,
           scheduled_at: o.at,
-          caption: captionFor(v, t.p),
+          caption: captionFor(v, t.p, brand.caption_signature),
         });
       }
       usedVideos.add(v.id);

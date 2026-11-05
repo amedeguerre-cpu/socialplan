@@ -10,6 +10,7 @@ import { PlanningPage } from './pages/PlanningPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { AccountsPage } from './pages/AccountsPage';
 import { AnalyticsPage } from './pages/AnalyticsPage';
+import { HealthDot, HealthPage } from './pages/HealthPage';
 
 const NAV = [
   { to: '/analiz', label: 'Analiz' },
@@ -44,13 +45,16 @@ export function App() {
               </NavLink>
             ))}
           </nav>
-          <span className="ml-auto truncate text-xs text-slate-500">{me.data?.email}</span>
+          <span className="ml-auto" />
+          <HealthDot />
+          <span className="truncate text-xs text-slate-500">{me.data?.email}</span>
         </header>
         <SafetyBanner />
         <main className="min-h-0 flex-1 overflow-auto">
           <Routes>
             <Route path="/" element={<Navigate to="/planlama" replace />} />
             <Route path="/analiz" element={<AnalyticsPage />} />
+            <Route path="/saglik" element={<HealthPage />} />
             <Route path="/planlama/*" element={<PlanningPage />} />
             <Route path="/videolar" element={<VideosPage />} />
             <Route path="/hesaplar" element={<AccountsPage />} />

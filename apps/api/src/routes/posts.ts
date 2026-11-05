@@ -193,7 +193,7 @@ export const postRoutes = new Hono<AppEnv>()
         platform: p,
         slot_id: null,
         scheduled_at: at.toISOString(),
-        caption: captionFor(video, p),
+        caption: captionFor(video, p, brand.caption_signature),
       });
     }
     const stmts: D1PreparedStatement[] = [];
