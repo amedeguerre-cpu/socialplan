@@ -75,3 +75,12 @@ describe('yükleme yardımcıları', () => {
     expect(n).toBe(3);
   });
 });
+
+import { heatColor } from '../src/pages/AnalyticsPage';
+describe('ısı haritası rengi', () => {
+  it('veri yoksa nötr, en yüksek oran en koyu ton', () => {
+    expect(heatColor(null, 1)).toBe('#f6f5f2');
+    expect(heatColor(0.1, 0.1)).toBe('#164a88');
+    expect(heatColor(0, 0.1)).toBe('#eaf2fc');
+  });
+});

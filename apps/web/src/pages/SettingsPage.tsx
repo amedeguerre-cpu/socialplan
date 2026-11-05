@@ -74,7 +74,7 @@ function SlotEditor() {
         <select
           value={weekday}
           onChange={(e) => setWeekday(Number(e.target.value))}
-          className={`${inputCls} w-36`}
+          className={`${inputCls} w-36!`}
           aria-label="Gün"
         >
           {WEEKDAYS.map((d, i) => (
@@ -87,7 +87,7 @@ function SlotEditor() {
           type="time"
           value={time}
           onChange={(e) => setTime(e.target.value)}
-          className={`${inputCls} w-28`}
+          className={`${inputCls} w-28!`}
           aria-label="Saat"
         />
         {PLATFORMS.map((p) => (

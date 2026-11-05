@@ -69,6 +69,11 @@ export interface MetricsResult {
   raw: unknown;
 }
 
+export type MetricsContext = Pick<
+  PublishContext,
+  'env' | 'http' | 'log' | 'now' | 'account' | 'tokens' | 'quota'
+>;
+
 export interface RefreshContext {
   env: Env;
   http: HttpClient;
@@ -94,10 +99,7 @@ export interface Publisher<S extends BaseState = BaseState> {
   refreshToken(rc: RefreshContext): Promise<RefreshResult>;
   /** Yenileme ne kadar önce yapılmalı (sn). */
   refreshLeadSeconds: number;
-  fetchMetrics(
-    ctx: Omit<PublishContext, 'beginCommit' | 'caption'>,
-    externalIds: string[],
-  ): Promise<Map<string, MetricsResult>>;
+  fetchMetrics(ctx: MetricsContext, externalIds: string[]): Promise<Map<string, MetricsResult>>;
 }
 
 /** Publisher'ın 401 vb. için döndürdüğü kod — orkestratör yenileyip adımı bir kez tekrarlar. */

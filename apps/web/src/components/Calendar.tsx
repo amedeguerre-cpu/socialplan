@@ -186,7 +186,7 @@ export function CalendarView({ onOpen }: { onOpen: (id: string) => void }) {
           value={q}
           onChange={(e) => setQ(e.target.value)}
           placeholder="Ara…"
-          className={`${inputCls} w-44`}
+          className={`${inputCls} w-44!`}
           aria-label="Takvimde ara"
         />
       </div>

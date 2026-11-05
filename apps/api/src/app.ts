@@ -13,6 +13,7 @@ import { postRoutes } from './routes/posts';
 import { accountRoutes } from './routes/accounts';
 import { oauthRoutes } from './routes/oauth';
 import { webhookRoutes } from './routes/webhooks';
+import { analyticsRoutes } from './routes/analytics';
 import type { AppEnv } from './types';
 
 const api = new Hono<AppEnv>()
@@ -26,7 +27,8 @@ const api = new Hono<AppEnv>()
   .route('/slots', slotRoutes)
   .route('/posts', postRoutes)
   .route('/accounts', accountRoutes)
-  .route('/oauth', oauthRoutes);
+  .route('/oauth', oauthRoutes)
+  .route('/analytics', analyticsRoutes);
 
 export const app = new Hono<AppEnv>()
   .use('*', async (c, next) => {

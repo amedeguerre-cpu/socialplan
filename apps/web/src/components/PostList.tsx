@@ -66,7 +66,7 @@ export function PostList({ onOpen }: { onOpen: (id: string) => void }) {
         <select
           value={f.platform}
           onChange={(e) => set({ platform: e.target.value })}
-          className={`${inputCls} w-36`}
+          className={`${inputCls} w-36!`}
           aria-label="Platform"
         >
           <option value="">Tüm platformlar</option>
@@ -79,7 +79,7 @@ export function PostList({ onOpen }: { onOpen: (id: string) => void }) {
         <select
           value={f.status}
           onChange={(e) => set({ status: e.target.value })}
-          className={`${inputCls} w-40`}
+          className={`${inputCls} w-40!`}
           aria-label="Durum"
         >
           <option value="">Tüm durumlar</option>
@@ -93,21 +93,21 @@ export function PostList({ onOpen }: { onOpen: (id: string) => void }) {
           type="date"
           value={f.from}
           onChange={(e) => set({ from: e.target.value })}
-          className={`${inputCls} w-40`}
+          className={`${inputCls} w-40!`}
           aria-label="Başlangıç"
         />
         <input
           type="date"
           value={f.to}
           onChange={(e) => set({ to: e.target.value })}
-          className={`${inputCls} w-40`}
+          className={`${inputCls} w-40!`}
           aria-label="Bitiş"
         />
         <input
           value={f.q}
           onChange={(e) => set({ q: e.target.value })}
           placeholder="Ara…"
-          className={`${inputCls} w-48`}
+          className={`${inputCls} w-48!`}
         />
         <span className="flex-1" />
         {sel.size > 0 && (

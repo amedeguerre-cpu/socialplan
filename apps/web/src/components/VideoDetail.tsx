@@ -289,14 +289,14 @@ function ScheduleForm({ video }: { video: VideoDTO }) {
           type="date"
           value={date}
           onChange={(e) => setDate(e.target.value)}
-          className={`${inputCls} w-40`}
+          className={`${inputCls} w-40!`}
           aria-label="Tarih"
         />
         <input
           type="time"
           value={time}
           onChange={(e) => setTime(e.target.value)}
-          className={`${inputCls} w-28`}
+          className={`${inputCls} w-28!`}
           aria-label="Saat"
         />
         <Button
