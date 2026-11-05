@@ -43,3 +43,27 @@ TikTok, audit'ten geçmemiş istemcilerin yalnız `SELF_ONLY` paylaşmasına izi
 7. Hesaplar → TikTok **Bağla**. Paylaşım saati gelince bildirim ("TikTok'ta yayınla") gelir; 1 saat içinde yayınlanmazsa bir kez daha hatırlatılır.
 
 Not: 24 saatte gelen kutusunda bekleyen taslak sayısı sınırlıdır (`spam_risk_too_many_pending_share` → "İşlem gerekli"). Bekleyen taslakları uygulamadan yayınlayın veya silin.
+
+## YouTube: Google Cloud projesi, consent ekranı ve audit
+
+YouTube Data API v3 ücretsizdir ama kotalıdır: Haziran 2026'dan beri `videos.insert` ayrı bir kovada **proje başına günde 100 yükleme**, diğer çağrılar günde 10.000 birim; sıfırlanma Pasifik gece yarısı. SocialPlan kota defteri tutar, dolarsa paylaşımı ertesi Pasifik gününe erteler.
+
+1. [Google Cloud Console](https://console.cloud.google.com/) → yeni proje → **APIs & Services → Library** → **YouTube Data API v3** ve **YouTube Analytics API**'yi etkinleştirin.
+2. **OAuth consent screen** (Google Auth Platform): User type _External_ → uygulama adı, destek e-postası → **Scopes**: `youtube.upload`, `youtube.readonly`, `yt-analytics.readonly`, `youtube.force-ssl` → **Test users**: kanal sahibi Google hesapları.
+3. **Credentials → Create credentials → OAuth client ID** → _Web application_ → **Authorized redirect URI**: `https://<panel-adresi>/api/oauth/youtube/callback`.
+   ```bash
+   # wrangler.jsonc → vars.GOOGLE_CLIENT_ID = "<client id>"
+   pnpm --filter @socialplan/api exec wrangler secret put GOOGLE_CLIENT_SECRET
+   ```
+4. **Consent ekranını "In production"a alın** (_Publishing status → Publish app_). "Testing" modunda refresh token **7 günde düşer** ve hesap her hafta yeniden bağlanmak zorunda kalır. Hassas scope'lar için Google doğrulaması istenebilir; doğrulanana kadar "Google bu uygulamayı doğrulamadı" uyarısını _Gelişmiş → devam et_ ile geçebilirsiniz (yalnız iç kullanım).
+5. Hesaplar → YouTube **Bağla**: Google hesabı ve (marka hesabı varsa) kanal seçilir. Refresh token gelmezse Google hesabınızda (_Güvenlik → Üçüncü taraf erişimi_) uygulamayı kaldırıp yeniden bağlayın.
+
+### Audit (public yükleme için zorunlu)
+
+**Audit'ten geçmemiş bir projeden API ile yüklenen video kalıcı olarak private kilitlenir; sonradan public yapılamaz.** Bu yüzden:
+
+- Ayarlar'daki **"YouTube API audit onayı alındı"** kapalıyken (varsayılan) videolar `private` yüklenir ve yalnız `ALLOWED_ACCOUNT_IDS` listesindeki **test kanalına** izin verilir. Panelde "Audit onayı yok: video private kalacak" uyarısı görünür.
+- Audit başvurusu: [YouTube API Services – Audit and Quota Extension Form](https://support.google.com/youtube/contact/yt_api_form). Form, uygulamanın **uçtan uca ekran kaydını** (OAuth bağlantısı → video planlama → yükleme → YouTube'da görünmesi), kullanım amacını (kendi kanallarımıza iç planlama aracı) ve gizlilik politikası/şartlar bağlantılarını ister. Süre belgelenmemiştir.
+- Onay gelince Ayarlar'da bayrağı açın: yeni yüklemeler `public` olur. Audit sonrası private yüklenmiş bir video için paylaşım detayındaki **"YouTube'da public yap"** düğmesi `videos.update` çağırır (audit öncesi yüklenenler kilitli kalabilir).
+- Shorts için API bayrağı yoktur: dikey/kare ve ≤ 3 dk videolar Shorts olarak sınıflanır; başlığa `#Shorts` eklenir. Shorts kapağı API ile ayarlanamıyor (belgelenmemiş).
+- Her yüklemede `selfDeclaredMadeForKids` (video ayarı) ve `containsSyntheticMedia` (yükleme sırasındaki "yapay zekâ ile üretildi" seçimi) açıkça gönderilir.

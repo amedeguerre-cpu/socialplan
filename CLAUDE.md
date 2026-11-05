@@ -80,6 +80,7 @@ packages/shared/     platform limitleri, durum makinesi, saat, doğrulama, zod �
 ## Tamamlanan fazlar
 
 - [x] Faz 0 — iskelet
+- [x] Faz 5 — YouTube: OAuth (PKCE, offline, consent select_account, channels.list mine=true), kota defteri (Pasifik günü, uploads 100), audit bayrağı (false: private + yalnız beyaz liste), resumable upload (8 MiB, 308/Range, kesintide boş PUT, 404 → yeni oturum), reconcile (boş PUT / yüklemeler listesi), madeForKids + containsSyntheticMedia, audit sonrası "public yap"
 - [x] Faz 4 — TikTok (inbox): OAuth (Login Kit, state), creator_info (scope yoksa atlanır), FILE_UPLOAD init + parçalı PUT (10 MiB, son parça kalanı emer, adım başına 4 parça, 403 → yeniden init), status/fetch, reconcile, webhook (imza + idempotent), "Yayınladım", hatırlatma, metin kopyala
 - [x] Faz 3 — Instagram: OAuth (Instagram Login, kısa → uzun token), limit → container (video_url/resumable) → yoklama → media_publish (commit) → permalink, reconcile (container PUBLISHED + caption/zaman eşleşmesi), token yenileme, kapak + share_to_feed + AI etiketi, Hesaplar sayfası
 - [x] Faz 2 — slotlar, doldurma (tek batch), elle tarih-saat, cron, Queue orkestratörü, durum makinesi, kilit, retry, kill switch, kaçırılan slot, DryRun, şimdi paylaş, post_events, liste görünümü, ayarlar sayfası, audit log
@@ -119,6 +120,11 @@ packages/shared/     platform limitleri, durum makinesi, saat, doğrulama, zod �
 - (yok)
 
 ## TODO(doğrula)
+
+- YouTube `status.publishAt` ile zamanlı yayın (kullanılmıyor; cron saatinde yüklenir).
+- Shorts'a API ile kapak (thumbnails.set) belgelenmemiş — kullanılmıyor.
+- YouTube Haziran 2026 yükleme kovasının hata `reason` değeri (`uploadLimitExceeded`/`quotaExceeded` varsayıldı).
+- Audit sonrası private videonun public yapılabilmesi (audit öncesi yüklenenler kilitli kalabilir).
 
 - TikTok webhook imza biçimi (`TikTok-Signature: t=..,s=..`, HMAC-SHA256(client_secret, `t.gövde`)) ve olay adları (`post.publish.publicly_available`, `post.publish.failed`).
 - TikTok inbox init'te `post_info` (caption) ve `is_aigc` kabul ediliyor mu? Şimdilik yalnız `source_info`; caption bildirimde ve panelde "Metni kopyala".

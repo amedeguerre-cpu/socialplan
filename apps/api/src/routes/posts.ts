@@ -16,8 +16,7 @@ import {
 } from '@socialplan/shared';
 import { all, first, newId, nowIso, parseJson, type SqlValue } from '../lib/db';
 import { toPostDTO } from '../lib/dto';
-import type { HttpError } from '../lib/errors';
-import { badRequest, conflict, notFound } from '../lib/errors';
+import { badRequest, conflict, HttpError, notFound } from '../lib/errors';
 import { audit } from '../lib/audit';
 import { acquireLease, eventStmt, humanTransition, syncVideoStatusStmt } from '../lib/posts';
 import { v } from '../lib/validate';
@@ -31,6 +30,10 @@ import {
   type PlannedPost,
 } from '../scheduler/fill';
 import { enqueue } from '../publish/orchestrator';
+import { createHttp } from '../publish/http';
+import { makeYoutubePublic } from '../publish/youtube';
+import { PlatformHttpError } from '../publish/errors';
+import { readTokens } from '../lib/tokens';
 import type { AppEnv } from '../types';
 
 type PostJoined = PostRow & {
@@ -332,6 +335,58 @@ export const postRoutes = new Hono<AppEnv>()
     await audit(c.env.DB, c.get('actor'), 'post.mark_published', 'post', p.id, {
       url: url ?? null,
     });
+    return c.json<PostDTO>(await getJoined(c.env.DB, p.id));
+  })
+  /** Audit sonrası: private yüklenmiş YouTube videosunu public yap. */
+  .post('/:id/youtube-public', async (c) => {
+    const p = await getPost(c.env.DB, c.req.param('id'));
+    if (p.platform !== 'youtube' || p.status !== 'published' || !p.external_id)
+      throw badRequest('Yalnız yayınlanmış YouTube videoları için');
+    if (p.visibility === 'public') return c.json<PostDTO>(await getJoined(c.env.DB, p.id));
+    const s = await getSettings(c.env.DB);
+    if (!s.youtube_audited)
+      throw conflict('YouTube audit onayı olmadan video public yapılamaz', 'not_audited');
+    const acc = await first<AccountRow>(
+      c.env.DB,
+      'SELECT * FROM accounts WHERE id = ?',
+      p.account_id,
+    );
+    const video = await first<VideoRow>(
+      c.env.DB,
+      'SELECT made_for_kids FROM videos WHERE id = ?',
+      p.video_id,
+    );
+    if (!acc) throw notFound('Hesap');
+    try {
+      const t = await readTokens(c.env, acc);
+      const vis = await makeYoutubePublic(
+        createHttp(c.env, c.get('log')),
+        t.access_token,
+        p.external_id,
+        video?.made_for_kids === 1,
+        new Date(),
+      );
+      await c.env.DB.batch([
+        c.env.DB.prepare('UPDATE posts SET visibility = ?, updated_at = ? WHERE id = ?').bind(
+          vis,
+          nowIso(),
+          p.id,
+        ),
+        eventStmt(c.env.DB, p, 'published', 'published', 'make_public', {
+          actor: c.get('actor'),
+          visibility: vis,
+        }),
+      ]);
+    } catch (e) {
+      const msg =
+        e instanceof PlatformHttpError ? e.message : e instanceof Error ? e.message : String(e);
+      throw new HttpError(
+        422,
+        'youtube_update_failed',
+        `${msg} (audit öncesi yüklenen videolar kalıcı private kalabilir)`,
+      );
+    }
+    await audit(c.env.DB, c.get('actor'), 'post.youtube_public', 'post', p.id);
     return c.json<PostDTO>(await getJoined(c.env.DB, p.id));
   })
   .post('/bulk', v('json', bulkPostsSchema), async (c) => {

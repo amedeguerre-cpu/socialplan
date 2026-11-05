@@ -268,6 +268,19 @@ function PostPanel({
             Şimdi paylaş
           </Button>
         )}
+        {post.platform === 'youtube' &&
+          post.status === 'published' &&
+          post.visibility === 'private' &&
+          youtubeAudited && (
+            <Button
+              disabled={busy}
+              onClick={() =>
+                void act(() => api.post(`/posts/${post.id}/youtube-public`), 'Video public yapıldı')
+              }
+            >
+              YouTube'da public yap
+            </Button>
+          )}
         {(post.status === 'failed' || post.status === 'needs_action') && (
           <Button
             variant="primary"
